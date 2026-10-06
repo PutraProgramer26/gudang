@@ -241,6 +241,21 @@ else {
     <?php
     }
 
+    ?>
+    <li class="nav-item <?php echo ($_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings') ? 'active' : ''; ?>">
+      <a href="?module=surat_jalan">
+        <i class="fas fa-file-signature"></i>
+        <p>Surat Jalan</p>
+      </a>
+    </li>
+    <li class="nav-item <?php echo $_GET['module'] == 'spp' ? 'active' : ''; ?>">
+      <a href="?module=spp">
+        <i class="fas fa-clipboard-list"></i>
+        <p>SPP</p>
+      </a>
+    </li>
+    <?php
+
     // jika menu penyesuaian stok dipilih, menu penyesuaian stok aktif
     if ($_GET['module'] == 'penyesuaian_stok' || $_GET['module'] == 'form_entri_penyesuaian_stok') { ?>
       <li class="nav-item active">
@@ -607,6 +622,10 @@ else {
     <?php
     }
 
+    $isSuratJalanActive = $_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings';
+    echo '<li class="nav-item ' . ($isSuratJalanActive ? 'active' : '') . '"><a href="?module=surat_jalan"><i class="fas fa-file-signature"></i><p>Surat Jalan</p></a></li>';
+    echo '<li class="nav-item ' . ($_GET['module'] == 'spp' ? 'active' : '') . '"><a href="?module=spp"><i class="fas fa-clipboard-list"></i><p>SPP</p></a></li>';
+
     // jika menu penyesuaian stok dipilih, menu penyesuaian stok aktif
     if ($_GET['module'] == 'penyesuaian_stok' || $_GET['module'] == 'form_entri_penyesuaian_stok') { ?>
       <li class="nav-item active">
@@ -805,6 +824,9 @@ else {
       </li>
 <?php
     }
+    $isSuratJalanActive = $_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings';
+    echo '<li class="nav-item ' . ($isSuratJalanActive ? 'active' : '') . '"><a href="?module=surat_jalan"><i class="fas fa-file-signature"></i><p>Surat Jalan</p></a></li>';
+    echo '<li class="nav-item ' . ($_GET['module'] == 'spp' ? 'active' : '') . '"><a href="?module=spp"><i class="fas fa-clipboard-list"></i><p>SPP</p></a></li>';
   }
 }
 ?>

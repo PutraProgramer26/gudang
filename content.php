@@ -86,6 +86,12 @@ else {
     // panggil file form entri barang keluar
     include "modules/barang-keluar/form_entri.php";
   }
+  elseif ($_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings') {
+    include "modules/surat-jalan/tampil_data.php";
+  }
+  elseif ($_GET['module'] == 'spp') {
+    include "modules/spp/tampil_data.php";
+  }
   // jika module yang dipilih "penyesuaian_stok"
   elseif ($_GET['module'] == 'penyesuaian_stok' && $_SESSION['hak_akses'] != 'Kepala Gudang') {
     // panggil file tampil data penyesuaian stok
