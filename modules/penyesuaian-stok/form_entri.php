@@ -127,6 +127,13 @@ else { ?>
 
   <script type="text/javascript">
     $(document).ready(function() {
+      $('#data_barang').chosen({
+        width: '100%',
+        no_results_text: 'Tidak ditemukan',
+        search_contains: true,
+        allow_single_deselect: true
+      });
+
       $('#data_barang').change(function() {
         var id_barang = $(this).val();
 
