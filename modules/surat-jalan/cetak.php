@@ -5,6 +5,11 @@ if (empty($_SESSION['username'])) {
   exit;
 }
 
+if (!isset($_SESSION['hak_akses']) || $_SESSION['hak_akses'] !== 'Administrator') {
+  header('location: ../../main.php?module=surat_jalan');
+  exit;
+}
+
 require_once '../../assets/js/plugin/dompdf/autoload.inc.php';
 require_once '../../config/database.php';
 require_once __DIR__ . '/schema.php';

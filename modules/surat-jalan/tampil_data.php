@@ -4,6 +4,17 @@ if (basename($_SERVER['PHP_SELF']) === basename(__FILE__)) {
   exit;
 }
 
+if (!isset($_SESSION['hak_akses']) || $_SESSION['hak_akses'] !== 'Administrator') {
+  ?>
+  <div class="page-inner">
+    <div class="alert alert-info mt-4" role="status">
+      <i class="fas fa-info-circle mr-2"></i>Sedang dalam pengembangan oleh Tim.
+    </div>
+  </div>
+  <?php
+  return;
+}
+
 require_once __DIR__ . '/schema.php';
 surat_jalan_ensure_schema($mysqli);
 
@@ -18,7 +29,7 @@ function surat_jalan_h($value)
 
 $settings_result = mysqli_query($mysqli, 'SELECT * FROM tbl_surat_jalan_settings WHERE id = 1');
 $settings = mysqli_fetch_assoc($settings_result);
-$canManageDocuments = isset($_SESSION['hak_akses']) && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
+$canManageDocuments = isset($_SESSION['hak_akses']) && $_SESSION['hak_akses'] === 'Administrator';
 $barang_result = mysqli_query($mysqli, 'SELECT id_barang, nama_barang FROM tbl_barang ORDER BY nama_barang ASC');
 $barang_options = array();
 while ($barang = mysqli_fetch_assoc($barang_result)) {

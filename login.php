@@ -112,7 +112,7 @@
 
         <!-- footer -->
         <div class="login-footer mt-4">
-          <span class="msg">&copy; Code Null - 2023</span>
+          <span class="msg">&copy; Putra - 2026</span>
          </div>
       </form>
     </div>

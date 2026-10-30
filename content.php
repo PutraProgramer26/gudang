@@ -92,6 +92,9 @@ else {
   elseif ($_GET['module'] == 'spp') {
     include "modules/spp/tampil_data.php";
   }
+  elseif ($_GET['module'] == 'jadwal_apd' && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true)) {
+    include "modules/jadwal-apd/tampil_data.php";
+  }
   // jika module yang dipilih "penyesuaian_stok"
   elseif ($_GET['module'] == 'penyesuaian_stok' && $_SESSION['hak_akses'] != 'Kepala Gudang') {
     // panggil file tampil data penyesuaian stok
