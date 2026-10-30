@@ -11,6 +11,13 @@ function spp_pdf_escape($value)
   return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function spp_pdf_quantity_format($value)
+{
+  $formatted = number_format((float) $value, 3, ',', '.');
+  $formatted = rtrim(rtrim($formatted, '0'), ',');
+  return $formatted === '' ? '0' : $formatted;
+}
+
 $token = isset($_GET['token']) ? trim($_GET['token']) : '';
 if (!preg_match('/^[a-f0-9]{64}$/', $token)) {
   http_response_code(404);
@@ -53,11 +60,11 @@ foreach ($items as $item) {
   $rows .= '<tr><td class="center">' . (int) $item['nomor_item'] . '</td>' .
     '<td>' . spp_pdf_escape($item['nama_item']) . '</td>' .
     '<td>' . (spp_pdf_escape($item['spesifikasi']) ?: '-') . '</td>' .
-    '<td class="center">' . number_format((float) $item['jumlah_diminta'], 3, ',', '.') . '</td>' .
+    '<td class="center">' . spp_pdf_escape(spp_pdf_quantity_format($item['jumlah_diminta'])) . '</td>' .
     '<td class="center">' . spp_pdf_escape($item['satuan']) . '</td>' .
     '<td>' . (spp_pdf_escape($item['untuk_pekerjaan']) ?: '-') . '</td>' .
     '<td>' . (spp_pdf_escape($item['keterangan']) ?: '-') . '</td>' .
-    '<td class="center">' . number_format((float) $item['jumlah_diterima'], 3, ',', '.') . '</td>' .
+    '<td class="center">' . spp_pdf_escape(spp_pdf_quantity_format($item['jumlah_diterima'])) . '</td>' .
     '<td class="center">' . number_format($percent, 1, ',', '.') . '%</td></tr>';
 }
 
@@ -80,7 +87,7 @@ $html = '<!doctype html><html lang="id"><head><meta charset="utf-8"><style>
   <h1>SURAT PERMINTAAN PEMBELIAN</h1>
   <div class="subtitle">Dokumen kebutuhan material project</div><div class="rule"></div>
   <table class="meta"><tr><td class="label">Project</td><td>: <strong>' . spp_pdf_escape($header['nama_project']) . '</strong></td><td class="label">Nomor SPP</td><td>: <strong>' . spp_pdf_escape($header['nomor_spp']) . '</strong></td></tr><tr><td class="label">Tanggal</td><td>: ' . date('d-m-Y', strtotime($header['tanggal'])) . '</td><td class="label">Status penerimaan</td><td>: ' . number_format($overallPercent, 1, ',', '.') . '%</td></tr></table>
-  <div class="progress">Jumlah permintaan awal: <strong>' . number_format($requestedTotal, 3, ',', '.') . '</strong> &nbsp; | &nbsp; Sudah diterima di site: <strong>' . number_format($receivedTotal, 3, ',', '.') . '</strong> &nbsp; | &nbsp; Progres: <strong>' . number_format($overallPercent, 1, ',', '.') . '%</strong></div>
+  <div class="progress">Jumlah permintaan awal: <strong>' . spp_pdf_escape(spp_pdf_quantity_format($requestedTotal)) . '</strong> &nbsp; | &nbsp; Sudah diterima di site: <strong>' . spp_pdf_escape(spp_pdf_quantity_format($receivedTotal)) . '</strong> &nbsp; | &nbsp; Progres: <strong>' . number_format($overallPercent, 1, ',', '.') . '%</strong></div>
   <table class="items"><thead><tr><th style="width:4%">No</th><th style="width:17%">Nama Item</th><th style="width:16%">Ukuran & Spesifikasi</th><th style="width:8%">Jumlah</th><th style="width:7%">Satuan</th><th style="width:15%">Untuk Pekerjaan</th><th style="width:14%">Keterangan</th><th style="width:9%">Diterima</th><th style="width:10%">Progres</th></tr></thead><tbody>' . $rows . '</tbody></table>
   <div class="footer">Dokumen ini dibagikan melalui tautan khusus. Data penerimaan mencerminkan pembaruan terakhir.</div>
 </body></html>';

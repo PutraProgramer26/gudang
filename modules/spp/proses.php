@@ -24,6 +24,18 @@ function spp_is_manager()
   return isset($_SESSION['hak_akses']) && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
 }
 
+function spp_parse_quantity($value)
+{
+  if (!is_string($value) && !is_numeric($value)) {
+    return false;
+  }
+  $value = trim((string) $value);
+  if (!preg_match('/^\d+(?:[.,]\d{1,3})?$/', $value)) {
+    return false;
+  }
+  return (float) str_replace(',', '.', $value);
+}
+
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['csrf_spp']) || empty($_POST['csrf_token']) ||
     !hash_equals($_SESSION['csrf_spp'], $_POST['csrf_token'])) {
   spp_redirect_error('Permintaan tidak valid. Muat ulang halaman dan coba lagi.');
@@ -92,7 +104,7 @@ if ($action === 'buat_spp') {
   for ($index = 0; $index < $rowCount; $index++) {
     $name = trim($names[$index]);
     $specification = trim($specifications[$index]);
-    $quantity = filter_var($quantities[$index], FILTER_VALIDATE_FLOAT);
+    $quantity = spp_parse_quantity($quantities[$index]);
     $unit = trim($units[$index]);
     $work = trim($workList[$index]);
     $note = trim($notes[$index]);
@@ -176,7 +188,7 @@ if ($action === 'update_penerimaan') {
     }
     foreach ($itemIds as $index => $itemIdRaw) {
       $itemId = filter_var($itemIdRaw, FILTER_VALIDATE_INT);
-      $received = filter_var($receivedList[$index], FILTER_VALIDATE_FLOAT);
+      $received = spp_parse_quantity($receivedList[$index]);
       if (!$itemId || $itemId < 1 || $received === false || $received < 0) {
         throw new RuntimeException('Jumlah barang diterima harus nol atau lebih.');
       }

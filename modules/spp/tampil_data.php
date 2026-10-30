@@ -16,6 +16,13 @@ function spp_h($value)
   return htmlspecialchars((string) $value, ENT_QUOTES, 'UTF-8');
 }
 
+function spp_quantity_format($value)
+{
+  $formatted = number_format((float) $value, 3, ',', '.');
+  $formatted = rtrim(rtrim($formatted, '0'), ',');
+  return $formatted === '' ? '0' : $formatted;
+}
+
 $canManageSpp = isset($_SESSION['hak_akses']) && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
 $projectResult = mysqli_query($mysqli, 'SELECT id, nama_project FROM tbl_spp_project ORDER BY nama_project ASC');
 $projects = array();
@@ -152,7 +159,7 @@ if ($appPath === '') {
                 <td class="text-center nomor-item">1</td>
                 <td><input class="form-control" name="nama_item[]" maxlength="160" required></td>
                 <td><input class="form-control" name="spesifikasi[]" maxlength="255" placeholder="Ukuran / spesifikasi"></td>
-                <td><input class="form-control" type="number" name="jumlah_diminta[]" min="0.001" step="0.001" required></td>
+                <td><input class="form-control" type="text" name="jumlah_diminta[]" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" maxlength="15" placeholder="Contoh: 10 atau 10,5" title="Masukkan jumlah barang bulat atau desimal, maksimal 3 angka di belakang koma" required></td>
                 <td><input class="form-control" name="satuan[]" maxlength="40" placeholder="pcs, kg, m" required></td>
                 <td><input class="form-control" name="untuk_pekerjaan[]" maxlength="160"></td>
                 <td><input class="form-control" name="keterangan[]" maxlength="255"></td>
@@ -182,7 +189,7 @@ if ($appPath === '') {
         <div class="spp-panel-body">
           <label for="tautan-spp">Link PDF online</label>
           <div class="spp-share-box mb-4"><input id="tautan-spp" class="form-control" readonly value="<?php echo spp_h($shareUrl); ?>"><button type="button" class="btn btn-outline-secondary" id="salin-link" title="Salin tautan" aria-label="Salin tautan"><i class="fas fa-copy"></i></button></div>
-          <div class="d-flex align-items-center justify-content-between flex-wrap mb-3"><div><strong>Penerimaan di site project</strong><div class="small text-muted">Total diterima <?php echo number_format($receivedTotal, 3, ',', '.'); ?> dari <?php echo number_format($requestedTotal, 3, ',', '.'); ?> unit jumlah</div></div><strong class="text-success" style="font-size:22px"><?php echo number_format($receivedPercent, 1, ',', '.'); ?>%</strong></div>
+          <div class="d-flex align-items-center justify-content-between flex-wrap mb-3"><div><strong>Penerimaan di site project</strong><div class="small text-muted">Total diterima <?php echo spp_h(spp_quantity_format($receivedTotal)); ?> dari <?php echo spp_h(spp_quantity_format($requestedTotal)); ?> unit barang</div></div><strong class="text-success" style="font-size:22px"><?php echo number_format($receivedPercent, 1, ',', '.'); ?>%</strong></div>
           <div class="spp-progress mb-4" aria-label="Progres penerimaan"><span style="width:<?php echo $receivedPercent; ?>%"></span></div>
           <?php if ($canManageSpp) { ?><form action="modules/spp/proses.php" method="post"><?php } ?>
             <?php if ($canManageSpp) { ?>
@@ -190,7 +197,7 @@ if ($appPath === '') {
             <?php } ?>
             <div class="table-responsive"><table class="table table-bordered spp-table"><thead><tr><th>No</th><th>Nama Item</th><th>Ukuran & Spesifikasi</th><th>Diminta</th><th>Diterima di Site</th><th>Satuan</th><th>Untuk Pekerjaan</th><th>Keterangan</th><th>Progres</th></tr></thead><tbody>
             <?php foreach ($sppItems as $itemRow) { $itemPercent = (float) $itemRow['jumlah_diminta'] > 0 ? min(100, round(((float) $itemRow['jumlah_diterima'] / (float) $itemRow['jumlah_diminta']) * 100, 1)) : 0; ?>
-              <tr><td><?php echo (int) $itemRow['nomor_item']; ?><?php if ($canManageSpp) { ?><input type="hidden" name="item_id[]" value="<?php echo (int) $itemRow['id']; ?>"><?php } ?></td><td><?php echo spp_h($itemRow['nama_item']); ?></td><td><?php echo spp_h($itemRow['spesifikasi'] ?: '-'); ?></td><td><?php echo number_format((float) $itemRow['jumlah_diminta'], 3, ',', '.'); ?></td><td><?php if ($canManageSpp) { ?><input class="form-control" type="number" name="jumlah_diterima[]" min="0" max="<?php echo spp_h($itemRow['jumlah_diminta']); ?>" step="0.001" value="<?php echo spp_h($itemRow['jumlah_diterima']); ?>" required><?php } else { echo number_format((float) $itemRow['jumlah_diterima'], 3, ',', '.'); } ?></td><td><?php echo spp_h($itemRow['satuan']); ?></td><td><?php echo spp_h($itemRow['untuk_pekerjaan'] ?: '-'); ?></td><td><?php echo spp_h($itemRow['keterangan'] ?: '-'); ?></td><td><?php echo number_format($itemPercent, 1, ',', '.'); ?>%</td></tr>
+              <tr><td><?php echo (int) $itemRow['nomor_item']; ?><?php if ($canManageSpp) { ?><input type="hidden" name="item_id[]" value="<?php echo (int) $itemRow['id']; ?>"><?php } ?></td><td><?php echo spp_h($itemRow['nama_item']); ?></td><td><?php echo spp_h($itemRow['spesifikasi'] ?: '-'); ?></td><td><?php echo spp_h(spp_quantity_format($itemRow['jumlah_diminta'])); ?></td><td><?php if ($canManageSpp) { ?><input class="form-control" type="text" name="jumlah_diterima[]" inputmode="decimal" pattern="[0-9]+([.,][0-9]{1,3})?" maxlength="15" value="<?php echo spp_h(spp_quantity_format($itemRow['jumlah_diterima'])); ?>" placeholder="Contoh: 10 atau 10,5" title="Maksimal 3 angka di belakang koma" required><?php } else { echo spp_h(spp_quantity_format($itemRow['jumlah_diterima'])); } ?></td><td><?php echo spp_h($itemRow['satuan']); ?></td><td><?php echo spp_h($itemRow['untuk_pekerjaan'] ?: '-'); ?></td><td><?php echo spp_h($itemRow['keterangan'] ?: '-'); ?></td><td><?php echo number_format($itemPercent, 1, ',', '.'); ?>%</td></tr>
             <?php } ?>
             </tbody></table></div>
             <?php if ($canManageSpp) { ?><button type="submit" class="btn btn-success"><i class="fas fa-truck-loading mr-1"></i>Simpan Update Penerimaan</button></form><?php } ?>
