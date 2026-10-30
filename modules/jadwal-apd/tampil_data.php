@@ -45,7 +45,18 @@ $hariIni = new DateTimeImmutable('today');
 $resultJadwal = mysqli_query(
   $mysqli,
   'SELECT p.nama_karyawan, p.site, i.nama_apd,
-          MAX(p.tanggal_pengambilan) AS pengambilan_terakhir
+          MAX(p.tanggal_pengambilan) AS pengambilan_terakhir,
+          (
+            SELECT item_terakhir.ukuran
+            FROM tbl_jadwal_apd pengambilan_terakhir
+            INNER JOIN tbl_jadwal_apd_item item_terakhir
+              ON item_terakhir.pengambilan_id = pengambilan_terakhir.id
+            WHERE pengambilan_terakhir.nama_karyawan = p.nama_karyawan
+              AND pengambilan_terakhir.site = p.site
+              AND item_terakhir.nama_apd = i.nama_apd
+            ORDER BY pengambilan_terakhir.tanggal_pengambilan DESC, pengambilan_terakhir.id DESC
+            LIMIT 1
+          ) AS ukuran
    FROM tbl_jadwal_apd p
    INNER JOIN tbl_jadwal_apd_item i ON i.pengambilan_id = p.id
    GROUP BY p.nama_karyawan, p.site, i.nama_apd
@@ -497,11 +508,12 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
                     <div class="font-weight-bold mb-2"><?php echo jadwal_apd_h($row['nama_karyawan']); ?> · <?php echo jadwal_apd_h($row['site']); ?> — jadwal APD</div>
                     <div class="table-responsive">
                       <table class="table table-sm table-bordered bg-white mb-0">
-                        <thead><tr><th>Item APD</th><th>Pengambilan terakhir</th><th>Tanggal berikutnya</th><th>Sisa waktu</th></tr></thead>
+                        <thead><tr><th>Item APD</th><th>Ukuran</th><th>Pengambilan terakhir</th><th>Tanggal berikutnya</th><th>Sisa waktu</th></tr></thead>
                         <tbody>
                           <?php foreach ($row['items'] as $item) { ?>
                             <tr>
                               <td><?php echo jadwal_apd_h($item['nama_apd']); ?></td>
+                              <td><?php echo $item['ukuran'] !== null && $item['ukuran'] !== '' ? jadwal_apd_h($item['ukuran']) : '-'; ?></td>
                               <td><?php echo jadwal_apd_h(date('d-m-Y', strtotime($item['pengambilan_terakhir']))); ?></td>
                               <td><?php echo jadwal_apd_h($item['tanggal_berikutnya']->format('d-m-Y')); ?></td>
                               <td><span class="apd-status <?php echo jadwal_apd_h($item['status']['class']); ?>"><?php echo jadwal_apd_h($item['status']['label']); ?></span></td>
