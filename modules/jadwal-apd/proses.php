@@ -6,7 +6,7 @@ if (empty($_SESSION['username'])) {
   exit;
 }
 
-if (!isset($_SESSION['hak_akses']) || !in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true)) {
+if (!isset($_SESSION['hak_akses']) || !in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang', 'Kepala Gudang'), true)) {
   header('location: ../../main.php?module=dashboard');
   exit;
 }
@@ -30,6 +30,10 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' ||
 
 $action = isset($_POST['aksi']) && is_string($_POST['aksi']) ? $_POST['aksi'] : 'tambah';
 $isAdministrator = $_SESSION['hak_akses'] === 'Administrator';
+$canRecordApd = in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
+if ($action === 'tambah' && !$canRecordApd) {
+  jadwal_apd_redirect_error('Role Kepala Gudang hanya dapat melihat jadwal dan riwayat APD.');
+}
 if (in_array($action, array('ubah', 'hapus'), true) && !$isAdministrator) {
   jadwal_apd_redirect_error('Fitur edit dan hapus riwayat hanya dapat digunakan oleh Administrator.');
 }

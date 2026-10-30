@@ -92,7 +92,7 @@ else {
   elseif ($_GET['module'] == 'spp') {
     include "modules/spp/tampil_data.php";
   }
-  elseif ($_GET['module'] == 'jadwal_apd' && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true)) {
+  elseif ($_GET['module'] == 'jadwal_apd' && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang', 'Kepala Gudang'), true)) {
     include "modules/jadwal-apd/tampil_data.php";
   }
   // jika module yang dipilih "penyesuaian_stok"

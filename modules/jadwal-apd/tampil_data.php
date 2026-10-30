@@ -130,6 +130,7 @@ while ($employeeRow = mysqli_fetch_assoc($employeeResult)) {
 }
 
 $isApdAdministrator = isset($_SESSION['hak_akses']) && $_SESSION['hak_akses'] === 'Administrator';
+$canRecordApd = isset($_SESSION['hak_akses']) && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
 $editRecord = null;
 $editItems = array();
 $editId = $isApdAdministrator && isset($_GET['edit_id']) ? filter_var($_GET['edit_id'], FILTER_VALIDATE_INT) : false;
@@ -362,6 +363,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
     <div class="col-sm-4 mb-3"><div class="apd-stat"><span>Item APD terlambat</span><strong><?php echo $jumlahTerlambat; ?></strong></div></div>
   </div>
 
+  <?php if ($canRecordApd) { ?>
   <section class="apd-panel">
     <div class="apd-panel-head"><h3><i class="fas fa-plus-circle mr-2 text-success"></i>Catat Pengambilan</h3><span class="text-muted small">Periode baru dimulai dari tanggal pengambilan terakhir</span></div>
     <div class="apd-panel-body">
@@ -461,6 +463,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
       });
     })();
   </script>
+  <?php } ?>
 
   <section class="apd-panel">
     <div class="apd-panel-head"><h3><i class="fas fa-calendar-check mr-2 text-success"></i>Jadwal Aktif</h3><span class="text-muted small">Pilih detail untuk melihat jadwal setiap item APD karyawan</span></div>
