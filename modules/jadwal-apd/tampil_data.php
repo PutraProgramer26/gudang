@@ -44,7 +44,7 @@ function jadwal_apd_status_tanggal($tanggalBerikutnya, $hariIni)
 $hariIni = new DateTimeImmutable('today');
 $resultJadwal = mysqli_query(
   $mysqli,
-  'SELECT p.nama_karyawan, p.site, i.nama_apd,
+  'SELECT p.nama_karyawan, p.uid_karyawan, p.site, i.nama_apd,
           MAX(p.tanggal_pengambilan) AS pengambilan_terakhir,
           (
             SELECT item_terakhir.ukuran
@@ -53,14 +53,15 @@ $resultJadwal = mysqli_query(
               ON item_terakhir.pengambilan_id = pengambilan_terakhir.id
             WHERE pengambilan_terakhir.nama_karyawan = p.nama_karyawan
               AND pengambilan_terakhir.site = p.site
+              AND pengambilan_terakhir.uid_karyawan <=> p.uid_karyawan
               AND item_terakhir.nama_apd = i.nama_apd
             ORDER BY pengambilan_terakhir.tanggal_pengambilan DESC, pengambilan_terakhir.id DESC
             LIMIT 1
           ) AS ukuran
    FROM tbl_jadwal_apd p
    INNER JOIN tbl_jadwal_apd_item i ON i.pengambilan_id = p.id
-   GROUP BY p.nama_karyawan, p.site, i.nama_apd
-   ORDER BY p.nama_karyawan ASC, p.site ASC, i.nama_apd ASC'
+   GROUP BY p.nama_karyawan, p.uid_karyawan, p.site, i.nama_apd
+   ORDER BY p.nama_karyawan ASC, p.uid_karyawan ASC, p.site ASC, i.nama_apd ASC'
 );
 if (!$resultJadwal) {
   throw new RuntimeException('Gagal memuat jadwal APD: ' . mysqli_error($mysqli));
@@ -79,14 +80,15 @@ while ($row = mysqli_fetch_assoc($resultJadwal)) {
   } elseif ($row['status']['days'] <= 30) {
     $jumlahSegera++;
   }
-  $key = strtolower($row['nama_karyawan']) . "\0" . strtolower($row['site']) . "\0" . strtolower($row['nama_apd']);
+  $key = strtolower((string) $row['uid_karyawan']) . "\0" . strtolower($row['nama_karyawan']) . "\0" . strtolower($row['site']) . "\0" . strtolower($row['nama_apd']);
   $jadwalApdAktif[$key] = $row;
   $jadwal[] = $row;
 
-  $employeeKey = strtolower($row['nama_karyawan']) . "\0" . strtolower($row['site']);
+  $employeeKey = strtolower((string) $row['uid_karyawan']) . "\0" . strtolower($row['nama_karyawan']) . "\0" . strtolower($row['site']);
   if (!isset($jadwalKaryawan[$employeeKey])) {
     $jadwalKaryawan[$employeeKey] = array(
       'nama_karyawan' => $row['nama_karyawan'],
+      'uid_karyawan' => $row['uid_karyawan'],
       'site' => $row['site'],
       'status' => $row['status'],
       'items' => array()
@@ -135,7 +137,7 @@ $editRecord = null;
 $editItems = array();
 $editId = $isApdAdministrator && isset($_GET['edit_id']) ? filter_var($_GET['edit_id'], FILTER_VALIDATE_INT) : false;
 if ($editId && $editId > 0) {
-  $editStatement = mysqli_prepare($mysqli, 'SELECT id, nama_karyawan, site, tanggal_pengambilan FROM tbl_jadwal_apd WHERE id = ? LIMIT 1');
+  $editStatement = mysqli_prepare($mysqli, 'SELECT id, nama_karyawan, uid_karyawan, site, tanggal_pengambilan FROM tbl_jadwal_apd WHERE id = ? LIMIT 1');
   if (!$editStatement) {
     throw new RuntimeException('Gagal menyiapkan data edit pengambilan APD: ' . mysqli_error($mysqli));
   }
@@ -153,13 +155,13 @@ if ($editId && $editId > 0) {
       'SELECT i.nama_apd, i.ukuran
        FROM tbl_jadwal_apd p
        INNER JOIN tbl_jadwal_apd_item i ON i.pengambilan_id = p.id
-       WHERE p.nama_karyawan = ? AND p.site = ? AND p.tanggal_pengambilan = ?
+       WHERE p.nama_karyawan = ? AND p.uid_karyawan <=> ? AND p.site = ? AND p.tanggal_pengambilan = ?
        ORDER BY p.id DESC, i.id DESC'
     );
     if (!$editItemsStatement) {
       throw new RuntimeException('Gagal menyiapkan item edit pengambilan APD: ' . mysqli_error($mysqli));
     }
-    mysqli_stmt_bind_param($editItemsStatement, 'sss', $editRecord['nama_karyawan'], $editRecord['site'], $editRecord['tanggal_pengambilan']);
+    mysqli_stmt_bind_param($editItemsStatement, 'ssss', $editRecord['nama_karyawan'], $editRecord['uid_karyawan'], $editRecord['site'], $editRecord['tanggal_pengambilan']);
     if (!mysqli_stmt_execute($editItemsStatement)) {
       throw new RuntimeException('Gagal memuat item edit pengambilan APD: ' . mysqli_stmt_error($editItemsStatement));
     }
@@ -175,7 +177,7 @@ if ($editId && $editId > 0) {
 
 $siteFilter = isset($_GET['site']) && is_string($_GET['site']) ? trim($_GET['site']) : '';
 $namaFilter = isset($_GET['nama_karyawan']) && is_string($_GET['nama_karyawan']) ? trim($_GET['nama_karyawan']) : '';
-$historySql = 'SELECT p.id, p.nama_karyawan, p.site, p.tanggal_pengambilan,
+$historySql = 'SELECT p.id, p.nama_karyawan, p.uid_karyawan, p.site, p.tanggal_pengambilan,
                       i.nama_apd, i.ukuran
                FROM tbl_jadwal_apd p
                INNER JOIN tbl_jadwal_apd_item i ON i.pengambilan_id = p.id';
@@ -209,12 +211,14 @@ if (!mysqli_stmt_execute($historyStatement)) {
 $historyResult = mysqli_stmt_get_result($historyStatement);
 $riwayat = array();
 while ($historyRow = mysqli_fetch_assoc($historyResult)) {
-  $historyKey = strtolower($historyRow['nama_karyawan']) . "\0" .
+  $historyKey = strtolower((string) $historyRow['uid_karyawan']) . "\0" .
+    strtolower($historyRow['nama_karyawan']) . "\0" .
     strtolower($historyRow['site']) . "\0" . $historyRow['tanggal_pengambilan'];
   if (!isset($riwayat[$historyKey])) {
     $riwayat[$historyKey] = array(
       'id' => (int) $historyRow['id'],
       'nama_karyawan' => $historyRow['nama_karyawan'],
+      'uid_karyawan' => $historyRow['uid_karyawan'],
       'site' => $historyRow['site'],
       'tanggal_pengambilan' => $historyRow['tanggal_pengambilan'],
       'jadwal_apd_item' => array()
@@ -225,7 +229,8 @@ while ($historyRow = mysqli_fetch_assoc($historyResult)) {
 
   $itemKey = strtolower($historyRow['nama_apd']);
   if (!isset($riwayat[$historyKey]['jadwal_apd_item'][$itemKey])) {
-    $activeKey = strtolower($historyRow['nama_karyawan']) . "\0" .
+    $activeKey = strtolower((string) $historyRow['uid_karyawan']) . "\0" .
+      strtolower($historyRow['nama_karyawan']) . "\0" .
       strtolower($historyRow['site']) . "\0" . $itemKey;
     if (isset($jadwalApdAktif[$activeKey])) {
       $itemData = $jadwalApdAktif[$activeKey];
@@ -317,6 +322,10 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
               <input id="edit_nama_karyawan" name="nama_karyawan" class="form-control" maxlength="150" value="<?php echo jadwal_apd_h($editRecord['nama_karyawan']); ?>" required>
             </div>
             <div class="form-group col-md-4">
+              <label for="edit_uid_karyawan">UID karyawan <span class="text-danger">*</span></label>
+              <input id="edit_uid_karyawan" name="uid_karyawan" class="form-control" maxlength="50" value="<?php echo jadwal_apd_h($editRecord['uid_karyawan']); ?>" required>
+            </div>
+            <div class="form-group col-md-4">
               <label for="edit_site">Site <span class="text-danger">*</span></label>
               <input id="edit_site" name="site" class="form-control" maxlength="120" value="<?php echo jadwal_apd_h($editRecord['site']); ?>" required>
             </div>
@@ -386,6 +395,9 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
               <input id="nama_karyawan_baru" type="text" name="nama_karyawan" class="form-control" maxlength="150" autocomplete="off" placeholder="Masukkan nama karyawan baru" disabled>
               <?php if (count($employees) === 0) { ?><small class="form-text text-muted">Belum ada karyawan terdaftar. Pilih “Tambah baru” untuk memulai.</small><?php } ?>
             </div>
+          </div>
+          <div class="col-lg-4 col-md-6">
+            <div class="form-group"><label for="uid_karyawan">UID karyawan <span class="text-danger">*</span></label><input id="uid_karyawan" name="uid_karyawan" class="form-control" maxlength="50" autocomplete="off" required placeholder="Masukkan UID karyawan"></div>
           </div>
           <div class="col-lg-4 col-md-6">
             <div class="form-group"><label for="site">Site <span class="text-danger">*</span></label><input id="site" name="site" class="form-control" list="apd-daftar-site" maxlength="120" autocomplete="off" required placeholder="Masukkan site kerja"><datalist id="apd-daftar-site"><?php foreach ($sites as $site) { ?><option value="<?php echo jadwal_apd_h($site); ?>"><?php } ?></datalist></div>
@@ -500,7 +512,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
           <?php if (count($jadwalKaryawanTampil) === 0) { ?><tr><td colspan="3" class="apd-empty"><?php echo count($jadwalKaryawan) === 0 ? 'Belum ada data pengambilan APD.' : 'Tidak ada jadwal yang cocok dengan pencarian.'; ?></td></tr><?php } ?>
           <?php foreach ($jadwalKaryawanTampil as $row) { ?>
             <tr>
-              <td><span class="font-weight-bold"><?php echo jadwal_apd_h($row['nama_karyawan']); ?></span><small class="d-block text-muted"><?php echo jadwal_apd_h($row['site']); ?></small></td>
+              <td><span class="font-weight-bold"><?php echo jadwal_apd_h($row['nama_karyawan']); ?></span><small class="d-block text-muted">UID: <?php echo jadwal_apd_h($row['uid_karyawan'] ?: '-'); ?> · <?php echo jadwal_apd_h($row['site']); ?></small></td>
               <td><span class="apd-status <?php echo jadwal_apd_h($row['status']['class']); ?>"><?php echo jadwal_apd_h($row['status']['label']); ?></span></td>
               <td><button class="btn btn-sm btn-outline-success" type="button" data-toggle="collapse" data-target="#<?php echo jadwal_apd_h($row['detail_id']); ?>" aria-expanded="false" aria-controls="<?php echo jadwal_apd_h($row['detail_id']); ?>"><i class="fas fa-eye mr-1"></i>Lihat detail</button></td>
             </tr>
@@ -508,7 +520,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
               <td colspan="3" class="p-0 border-0">
                 <div class="collapse" id="<?php echo jadwal_apd_h($row['detail_id']); ?>">
                   <div class="p-3">
-                    <div class="font-weight-bold mb-2"><?php echo jadwal_apd_h($row['nama_karyawan']); ?> · <?php echo jadwal_apd_h($row['site']); ?> — jadwal APD</div>
+                    <div class="font-weight-bold mb-2"><?php echo jadwal_apd_h($row['nama_karyawan']); ?> · UID: <?php echo jadwal_apd_h($row['uid_karyawan'] ?: '-'); ?> · <?php echo jadwal_apd_h($row['site']); ?> — jadwal APD</div>
                     <div class="table-responsive">
                       <table class="table table-sm table-bordered bg-white mb-0">
                         <thead><tr><th>Item APD</th><th>Ukuran</th><th>Pengambilan terakhir</th><th>Tanggal berikutnya</th><th>Sisa waktu</th></tr></thead>
@@ -546,12 +558,13 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
       </form>
       <div class="table-responsive">
         <table class="table table-hover mb-0 apd-table">
-          <thead><tr><th>Tanggal</th><th>Karyawan</th><th>Site</th><th>APD &amp; jadwal aktif per item</th><?php if ($isApdAdministrator) { ?><th>Aksi</th><?php } ?></tr></thead>
+          <thead><tr><th>Tanggal</th><th>UID Karyawan</th><th>Karyawan</th><th>Site</th><th>APD &amp; jadwal aktif per item</th><?php if ($isApdAdministrator) { ?><th>Aksi</th><?php } ?></tr></thead>
           <tbody>
-            <?php if (count($riwayat) === 0) { ?><tr><td colspan="<?php echo $isApdAdministrator ? '5' : '4'; ?>" class="apd-empty">Tidak ada riwayat yang sesuai dengan pencarian.</td></tr><?php } ?>
+            <?php if (count($riwayat) === 0) { ?><tr><td colspan="<?php echo $isApdAdministrator ? '6' : '5'; ?>" class="apd-empty">Tidak ada riwayat yang sesuai dengan pencarian.</td></tr><?php } ?>
             <?php foreach ($riwayat as $row) { ?>
               <tr>
                 <td><?php echo jadwal_apd_h(date('d-m-Y', strtotime($row['tanggal_pengambilan']))); ?></td>
+                <td><?php echo jadwal_apd_h($row['uid_karyawan'] ?: '-'); ?></td>
                 <td class="font-weight-bold"><?php echo jadwal_apd_h($row['nama_karyawan']); ?></td>
                 <td><?php echo jadwal_apd_h($row['site']); ?></td>
                 <td>

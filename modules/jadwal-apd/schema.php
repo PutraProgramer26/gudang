@@ -5,6 +5,7 @@ function jadwal_apd_ensure_schema($mysqli)
     "CREATE TABLE IF NOT EXISTS tbl_jadwal_apd (
       id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
       nama_karyawan VARCHAR(150) NOT NULL,
+      uid_karyawan VARCHAR(50) DEFAULT NULL,
       site VARCHAR(120) NOT NULL,
       tanggal_pengambilan DATE NOT NULL,
       dibuat_oleh VARCHAR(120) NOT NULL,
@@ -29,6 +30,15 @@ function jadwal_apd_ensure_schema($mysqli)
     if (!mysqli_query($mysqli, $query)) {
       throw new RuntimeException('Gagal menyiapkan tabel jadwal APD: ' . mysqli_error($mysqli));
     }
+  }
+
+  $uidColumnResult = mysqli_query($mysqli, "SHOW COLUMNS FROM tbl_jadwal_apd LIKE 'uid_karyawan'");
+  if (!$uidColumnResult) {
+    throw new RuntimeException('Gagal memeriksa kolom UID karyawan: ' . mysqli_error($mysqli));
+  }
+  if (mysqli_num_rows($uidColumnResult) === 0 &&
+      !mysqli_query($mysqli, 'ALTER TABLE tbl_jadwal_apd ADD COLUMN uid_karyawan VARCHAR(50) NULL AFTER nama_karyawan')) {
+    throw new RuntimeException('Gagal menambahkan kolom UID karyawan: ' . mysqli_error($mysqli));
   }
 
   $columnResult = mysqli_query($mysqli, "SHOW COLUMNS FROM tbl_jadwal_apd_item LIKE 'ukuran'");

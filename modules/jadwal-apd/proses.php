@@ -44,7 +44,7 @@ if ($action === 'hapus') {
     jadwal_apd_redirect_error('Catatan pengambilan tidak valid.');
   }
 
-  $recordStatement = mysqli_prepare($mysqli, 'SELECT nama_karyawan, site, tanggal_pengambilan FROM tbl_jadwal_apd WHERE id = ? LIMIT 1');
+  $recordStatement = mysqli_prepare($mysqli, 'SELECT nama_karyawan, uid_karyawan, site, tanggal_pengambilan FROM tbl_jadwal_apd WHERE id = ? LIMIT 1');
   if (!$recordStatement) {
     error_log('Jadwal APD: gagal menyiapkan pencarian catatan hapus: ' . mysqli_error($mysqli));
     jadwal_apd_redirect_error('Catatan pengambilan tidak dapat dihapus. Silakan coba kembali.');
@@ -63,14 +63,15 @@ if ($action === 'hapus') {
   }
 
   $recordEmployee = $record['nama_karyawan'];
+  $recordUid = $record['uid_karyawan'];
   $recordSite = $record['site'];
   $recordDate = $record['tanggal_pengambilan'];
-  $deleteStatement = mysqli_prepare($mysqli, 'DELETE FROM tbl_jadwal_apd WHERE nama_karyawan = ? AND site = ? AND tanggal_pengambilan = ?');
+  $deleteStatement = mysqli_prepare($mysqli, 'DELETE FROM tbl_jadwal_apd WHERE nama_karyawan = ? AND uid_karyawan <=> ? AND site = ? AND tanggal_pengambilan = ?');
   if (!$deleteStatement) {
     error_log('Jadwal APD: gagal menyiapkan penghapusan catatan: ' . mysqli_error($mysqli));
     jadwal_apd_redirect_error('Catatan pengambilan tidak dapat dihapus. Silakan coba kembali.');
   }
-  mysqli_stmt_bind_param($deleteStatement, 'sss', $recordEmployee, $recordSite, $recordDate);
+  mysqli_stmt_bind_param($deleteStatement, 'ssss', $recordEmployee, $recordUid, $recordSite, $recordDate);
   $deleted = mysqli_stmt_execute($deleteStatement);
   $deletedRows = mysqli_stmt_affected_rows($deleteStatement);
   if (!$deleted) {
@@ -97,6 +98,7 @@ if ($action === 'ubah') {
 }
 
 $namaKaryawan = isset($_POST['nama_karyawan']) && is_string($_POST['nama_karyawan']) ? trim($_POST['nama_karyawan']) : '';
+$uidKaryawan = isset($_POST['uid_karyawan']) && is_string($_POST['uid_karyawan']) ? trim($_POST['uid_karyawan']) : '';
 $site = isset($_POST['site']) && is_string($_POST['site']) ? trim($_POST['site']) : '';
 $tanggal = isset($_POST['tanggal_pengambilan']) && is_string($_POST['tanggal_pengambilan']) ? $_POST['tanggal_pengambilan'] : '';
 $tanggalObject = $tanggal !== '' ? DateTime::createFromFormat('!Y-m-d', $tanggal) : false;
@@ -131,10 +133,11 @@ foreach (array('Vest' => 'vest', 'Sepatu' => 'sepatu') as $namaApd => $fieldUkur
 }
 
 if ($namaKaryawan === '' || strlen($namaKaryawan) > 150 ||
+    $uidKaryawan === '' || strlen($uidKaryawan) > 50 ||
     $site === '' || strlen($site) > 120 ||
     !$tanggalObject || $tanggalObject->format('Y-m-d') !== $tanggal ||
     !$apdValid) {
-  jadwal_apd_redirect_error('Lengkapi nama karyawan, site, tanggal, minimal satu jenis APD, serta ukuran Vest/Sepatu yang dipilih (maksimal 30 karakter).');
+  jadwal_apd_redirect_error('Lengkapi UID karyawan, nama karyawan, site, tanggal, minimal satu jenis APD, serta ukuran Vest/Sepatu yang dipilih.');
 }
 
 if (!mysqli_begin_transaction($mysqli)) {
@@ -143,7 +146,7 @@ if (!mysqli_begin_transaction($mysqli)) {
 }
 
 if ($action === 'ubah') {
-  $recordStatement = mysqli_prepare($mysqli, 'SELECT nama_karyawan, site, tanggal_pengambilan FROM tbl_jadwal_apd WHERE id = ? FOR UPDATE');
+  $recordStatement = mysqli_prepare($mysqli, 'SELECT nama_karyawan, uid_karyawan, site, tanggal_pengambilan FROM tbl_jadwal_apd WHERE id = ? FOR UPDATE');
   if (!$recordStatement) {
     error_log('Jadwal APD: gagal menyiapkan pencarian catatan edit: ' . mysqli_error($mysqli));
     mysqli_rollback($mysqli);
@@ -162,16 +165,17 @@ if ($action === 'ubah') {
     jadwal_apd_redirect_error('Catatan pengambilan tidak ditemukan.');
   }
   $recordEmployee = $record['nama_karyawan'];
+  $recordUid = $record['uid_karyawan'];
   $recordSite = $record['site'];
   $recordDate = $record['tanggal_pengambilan'];
 
-  $updateStatement = mysqli_prepare($mysqli, 'UPDATE tbl_jadwal_apd SET nama_karyawan = ?, site = ?, tanggal_pengambilan = ? WHERE id = ?');
+  $updateStatement = mysqli_prepare($mysqli, 'UPDATE tbl_jadwal_apd SET nama_karyawan = ?, uid_karyawan = ?, site = ?, tanggal_pengambilan = ? WHERE id = ?');
   if (!$updateStatement) {
     error_log('Jadwal APD: gagal menyiapkan perubahan catatan: ' . mysqli_error($mysqli));
     mysqli_rollback($mysqli);
     jadwal_apd_redirect_error('Catatan pengambilan tidak dapat diubah. Silakan coba kembali.');
   }
-  mysqli_stmt_bind_param($updateStatement, 'sssi', $namaKaryawan, $site, $tanggal, $recordId);
+  mysqli_stmt_bind_param($updateStatement, 'ssssi', $namaKaryawan, $uidKaryawan, $site, $tanggal, $recordId);
   $saved = mysqli_stmt_execute($updateStatement);
   if (!$saved) {
     error_log('Jadwal APD: gagal mengubah catatan: ' . mysqli_stmt_error($updateStatement));
@@ -182,13 +186,13 @@ if ($action === 'ubah') {
     jadwal_apd_redirect_error('Catatan pengambilan tidak dapat diubah. Silakan coba kembali.');
   }
 
-  $mergeStatement = mysqli_prepare($mysqli, 'DELETE FROM tbl_jadwal_apd WHERE nama_karyawan = ? AND site = ? AND tanggal_pengambilan = ? AND id <> ?');
+  $mergeStatement = mysqli_prepare($mysqli, 'DELETE FROM tbl_jadwal_apd WHERE nama_karyawan = ? AND uid_karyawan <=> ? AND site = ? AND tanggal_pengambilan = ? AND id <> ?');
   if (!$mergeStatement) {
     error_log('Jadwal APD: gagal menyiapkan penggabungan catatan pada hari yang sama: ' . mysqli_error($mysqli));
     mysqli_rollback($mysqli);
     jadwal_apd_redirect_error('Catatan pengambilan tidak dapat diubah. Silakan coba kembali.');
   }
-  mysqli_stmt_bind_param($mergeStatement, 'sssi', $recordEmployee, $recordSite, $recordDate, $recordId);
+  mysqli_stmt_bind_param($mergeStatement, 'ssssi', $recordEmployee, $recordUid, $recordSite, $recordDate, $recordId);
   $merged = mysqli_stmt_execute($mergeStatement);
   if (!$merged) {
     error_log('Jadwal APD: gagal menggabungkan catatan pada hari yang sama: ' . mysqli_stmt_error($mergeStatement));
@@ -218,14 +222,14 @@ if ($action === 'ubah') {
 
   $pengambilanId = $recordId;
 } else {
-  $insertHeader = mysqli_prepare($mysqli, 'INSERT INTO tbl_jadwal_apd (nama_karyawan, site, tanggal_pengambilan, dibuat_oleh) VALUES (?, ?, ?, ?)');
+  $insertHeader = mysqli_prepare($mysqli, 'INSERT INTO tbl_jadwal_apd (nama_karyawan, uid_karyawan, site, tanggal_pengambilan, dibuat_oleh) VALUES (?, ?, ?, ?, ?)');
   if (!$insertHeader) {
     error_log('Jadwal APD: gagal menyiapkan penyimpanan pengambilan: ' . mysqli_error($mysqli));
     mysqli_rollback($mysqli);
     jadwal_apd_redirect_error('Data pengambilan belum dapat disimpan. Silakan coba kembali.');
   }
   $dibuatOleh = $_SESSION['username'];
-  mysqli_stmt_bind_param($insertHeader, 'ssss', $namaKaryawan, $site, $tanggal, $dibuatOleh);
+  mysqli_stmt_bind_param($insertHeader, 'sssss', $namaKaryawan, $uidKaryawan, $site, $tanggal, $dibuatOleh);
   $saved = mysqli_stmt_execute($insertHeader);
   $pengambilanId = mysqli_insert_id($mysqli);
   if (!$saved) {
