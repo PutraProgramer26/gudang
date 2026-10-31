@@ -62,7 +62,8 @@ try {
   if (in_array($action, array('tambah_item', 'ubah_item'), true)) {
     $warehouseId = filter_var(inventory_post('gudang_id'), FILTER_VALIDATE_INT);
     $name = inventory_post('nama_item');
-    $qty = filter_var(inventory_post('qty'), FILTER_VALIDATE_FLOAT);
+    $qtyInput = str_replace(',', '.', inventory_post('qty'));
+    $qty = filter_var($qtyInput, FILTER_VALIDATE_FLOAT);
     $unit = inventory_post('satuan');
     $category = inventory_post('kategori');
     $condition = inventory_post('kondisi');
