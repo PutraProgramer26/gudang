@@ -188,6 +188,49 @@ INSERT INTO `tbl_user` (`id_user`, `nama_user`, `username`, `password`, `hak_aks
 (2, 'Admin Gudang', 'admin gudang', '$2y$12$BeRYh13zfPXej97VgcfeNucYJGTElha5sRyIUQm1278D2u2Aqf6DS', 'Admin Gudang'),
 (3, 'Kepala Gudang', 'kepala gudang', '$2y$12$odXcPs.RLJJH6Ghv3s42c.5zg5qAOz/S3Adr0lXGNcVSJ6f1hHS6G', 'Kepala Gudang');
 
+-- --------------------------------------------------------
+-- Struktur Data Inventory Gudang
+-- --------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS `tbl_gudang` (
+  `id_gudang` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `kode_gudang` varchar(20) NOT NULL,
+  `nama_gudang` varchar(100) NOT NULL,
+  `penanggung_jawab` varchar(100) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id_gudang`),
+  UNIQUE KEY `uq_gudang_kode` (`kode_gudang`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `tbl_inventory` (
+  `id_inventory` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `gudang_id` int(10) unsigned NOT NULL,
+  `nama_item` varchar(150) NOT NULL,
+  `kategori` varchar(30) NOT NULL,
+  `qty` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `satuan` varchar(40) NOT NULL,
+  `kondisi` enum('Baik','Rusak') NOT NULL DEFAULT 'Baik',
+  `tanggal_pengambilan` date DEFAULT NULL,
+  `keterangan` text DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id_inventory`),
+  KEY `idx_inventory_gudang` (`gudang_id`),
+  KEY `idx_inventory_kategori` (`kategori`),
+  CONSTRAINT `fk_inventory_gudang` FOREIGN KEY (`gudang_id`) REFERENCES `tbl_gudang` (`id_gudang`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+INSERT INTO `tbl_gudang` (`kode_gudang`, `nama_gudang`, `penanggung_jawab`)
+SELECT 'G-001', 'Gudang Utama', 'Belum ditentukan'
+WHERE NOT EXISTS (SELECT 1 FROM `tbl_gudang` LIMIT 1);
+INSERT INTO `tbl_gudang` (`kode_gudang`, `nama_gudang`, `penanggung_jawab`)
+SELECT 'G-002', 'Gudang APD & Safety', 'Belum ditentukan'
+WHERE (SELECT COUNT(*) FROM `tbl_gudang`) = 1;
+INSERT INTO `tbl_gudang` (`kode_gudang`, `nama_gudang`, `penanggung_jawab`)
+SELECT 'G-003', 'Gudang Elektronik', 'Belum ditentukan'
+WHERE (SELECT COUNT(*) FROM `tbl_gudang`) = 2;
+
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

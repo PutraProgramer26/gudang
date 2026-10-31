@@ -16,6 +16,9 @@ else {
     // panggil file tampil data dashboard
     include "modules/dashboard/tampil_data.php";
   }
+  elseif ($_GET['module'] == 'inventory') {
+    include "modules/inventory/tampil_data.php";
+  }
   // jika module yang dipilih "barang" dan hak akses bukan "Kepala Gudang"
   elseif ($_GET['module'] == 'barang' && $_SESSION['hak_akses'] != 'Kepala Gudang') {
     // panggil file tampil data barang

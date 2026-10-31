@@ -7,6 +7,18 @@ if (basename($_SERVER['PHP_SELF']) === basename(__FILE__)) {
 }
 // jika file di include oleh file lain, tampilkan isi file
 else {
+?>
+  <li class="nav-section">
+    <span class="sidebar-mini-icon"><i class="fa fa-ellipsis-h"></i></span>
+    <h4 class="text-section">Inventory</h4>
+  </li>
+  <li class="nav-item <?php echo $_GET['module'] == 'inventory' ? 'active' : ''; ?>">
+    <a href="?module=inventory">
+      <i class="fas fa-warehouse"></i>
+      <p>Data Inventory Gudang</p>
+    </a>
+  </li>
+<?php
   // pengecekan hak akses untuk menampilkan menu sesuai dengan hak akses
   // jika hak akses = Administrator, tampilkan menu
   if ($_SESSION['hak_akses'] == 'Administrator') {
