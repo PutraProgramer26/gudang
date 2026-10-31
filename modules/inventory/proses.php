@@ -74,8 +74,9 @@ try {
     if ($takenDate !== '' && !preg_match('/^\d{4}-\d{2}-\d{2}$/', $takenDate)) {
       throw new InvalidArgumentException('Format tanggal pengambilan tidak valid.');
     }
+    $takenDate = $takenDate === '' ? null : $takenDate;
     if ($action === 'tambah_item') {
-      $statement = mysqli_prepare($mysqli, 'INSERT INTO tbl_inventory (gudang_id, nama_item, kategori, qty, satuan, kondisi, tanggal_pengambilan, keterangan, created_by) VALUES (?, ?, ?, ?, ?, ?, NULLIF(?, ""), ?, ?)');
+      $statement = mysqli_prepare($mysqli, 'INSERT INTO tbl_inventory (gudang_id, nama_item, kategori, qty, satuan, kondisi, tanggal_pengambilan, keterangan, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
       $userId = isset($_SESSION['id_user']) ? (int) $_SESSION['id_user'] : 0;
       mysqli_stmt_bind_param($statement, 'issdssssi', $warehouseId, $name, $category, $qty, $unit, $condition, $takenDate, $note, $userId);
     } else {
@@ -83,7 +84,7 @@ try {
       if (!$itemId || $itemId < 1) {
         throw new InvalidArgumentException('Item tidak valid.');
       }
-      $statement = mysqli_prepare($mysqli, 'UPDATE tbl_inventory SET gudang_id = ?, nama_item = ?, kategori = ?, qty = ?, satuan = ?, kondisi = ?, tanggal_pengambilan = NULLIF(?, ""), keterangan = ? WHERE id_inventory = ?');
+      $statement = mysqli_prepare($mysqli, 'UPDATE tbl_inventory SET gudang_id = ?, nama_item = ?, kategori = ?, qty = ?, satuan = ?, kondisi = ?, tanggal_pengambilan = ?, keterangan = ? WHERE id_inventory = ?');
       mysqli_stmt_bind_param($statement, 'issdssssi', $warehouseId, $name, $category, $qty, $unit, $condition, $takenDate, $note, $itemId);
     }
     if (!mysqli_stmt_execute($statement)) {
