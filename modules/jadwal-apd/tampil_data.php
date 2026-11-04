@@ -109,10 +109,14 @@ while ($siteRow = mysqli_fetch_assoc($siteResult)) {
 }
 
 $jadwalNamaFilter = isset($_GET['jadwal_nama']) && is_string($_GET['jadwal_nama']) ? trim($_GET['jadwal_nama']) : '';
+$jadwalUidFilter = isset($_GET['jadwal_uid']) && is_string($_GET['jadwal_uid']) ? trim($_GET['jadwal_uid']) : '';
 $jadwalSiteFilter = isset($_GET['jadwal_site']) && is_string($_GET['jadwal_site']) ? trim($_GET['jadwal_site']) : '';
 $jadwalKaryawanTampil = array();
 foreach ($jadwalKaryawan as $employeeKey => $employeeSchedule) {
   if ($jadwalNamaFilter !== '' && stripos($employeeSchedule['nama_karyawan'], $jadwalNamaFilter) === false) {
+    continue;
+  }
+  if ($jadwalUidFilter !== '' && stripos((string) $employeeSchedule['uid_karyawan'], $jadwalUidFilter) === false) {
     continue;
   }
   if ($jadwalSiteFilter !== '' && strcasecmp($employeeSchedule['site'], $jadwalSiteFilter) !== 0) {
@@ -528,13 +532,19 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
     <div class="apd-panel-body pb-0">
       <form method="get" action="main.php" class="row align-items-end mb-3">
         <input type="hidden" name="module" value="jadwal_apd">
-        <div class="col-md-5">
+        <div class="col-md-4">
           <div class="form-group">
             <label for="jadwal_filter_nama">Nama karyawan</label>
             <input id="jadwal_filter_nama" type="search" name="jadwal_nama" class="form-control" value="<?php echo jadwal_apd_h($jadwalNamaFilter); ?>" placeholder="Cari nama karyawan">
           </div>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-3">
+          <div class="form-group">
+            <label for="jadwal_filter_uid">UID karyawan</label>
+            <input id="jadwal_filter_uid" type="search" name="jadwal_uid" class="form-control" value="<?php echo jadwal_apd_h($jadwalUidFilter); ?>" placeholder="Cari UID karyawan">
+          </div>
+        </div>
+        <div class="col-md-3">
           <div class="form-group">
             <label for="jadwal_filter_site">Site</label>
             <select id="jadwal_filter_site" name="jadwal_site" class="form-control">
@@ -545,7 +555,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
             </select>
           </div>
         </div>
-        <div class="col-md-3 mb-3 mb-md-0">
+        <div class="col-md-2 mb-3 mb-md-0">
           <button type="submit" class="btn btn-outline-success mr-1"><i class="fas fa-search mr-1"></i>Cari</button>
           <a class="btn btn-light" href="main.php?module=jadwal_apd">Reset</a>
         </div>
