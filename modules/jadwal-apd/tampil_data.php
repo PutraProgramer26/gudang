@@ -287,6 +287,12 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
   .apd-employee-mode input { accent-color:#087f72; }
   .apd-apd-option input { accent-color:#087f72; }
   .apd-empty { padding:34px 16px; text-align:center; color:#718083; }
+  .apd-pagination { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; padding:0 20px 16px; }
+  .apd-pagination label { display:flex; align-items:center; gap:8px; margin:0; font-size:12px; }
+  .apd-pagination select { width:auto; min-width:72px; }
+  .apd-pagination-info { color:#718083; font-size:12px; }
+  .apd-pagination-pages { display:flex; gap:4px; }
+  .apd-pagination-pages .btn { min-width:34px; }
   @media(max-width:767px) { .apd-hero { padding:20px; align-items:flex-start; } .apd-mark { display:none; } .apd-panel-body { padding:14px; } .apd-panel-head { padding:14px; } }
 </style>
 
@@ -506,7 +512,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
       </form>
     </div>
     <div class="table-responsive">
-      <table class="table table-hover mb-0 apd-table">
+      <table id="jadwal-apd-aktif" class="table table-hover mb-0 apd-table">
         <thead><tr><th>Nama karyawan</th><th>Sisa waktu terdekat</th><th>Aksi</th></tr></thead>
         <tbody>
           <?php if (count($jadwalKaryawanTampil) === 0) { ?><tr><td colspan="3" class="apd-empty"><?php echo count($jadwalKaryawan) === 0 ? 'Belum ada data pengambilan APD.' : 'Tidak ada jadwal yang cocok dengan pencarian.'; ?></td></tr><?php } ?>
@@ -545,6 +551,19 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
         </tbody>
       </table>
     </div>
+    <div class="apd-pagination" data-apd-pagination-for="jadwal-apd-aktif">
+      <label> Tampilkan
+        <select class="form-control form-control-sm" data-apd-page-length aria-label="Jumlah jadwal aktif per halaman">
+          <option value="10">10</option>
+          <option value="25">25</option>
+          <option value="50">50</option>
+          <option value="100">100</option>
+        </select>
+        data
+      </label>
+      <span class="apd-pagination-info" data-apd-pagination-info></span>
+      <div class="apd-pagination-pages" data-apd-pagination-pages></div>
+    </div>
   </section>
 
   <section class="apd-panel">
@@ -557,7 +576,7 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
         <div class="col-md-3 mb-3 mb-md-0"><button class="btn btn-outline-success mr-1" type="submit"><i class="fas fa-search mr-1"></i>Cari</button><a class="btn btn-light" href="main.php?module=jadwal_apd">Reset</a></div>
       </form>
       <div class="table-responsive">
-        <table class="table table-hover mb-0 apd-table">
+        <table id="jadwal-apd-riwayat" class="table table-hover mb-0 apd-table">
           <thead><tr><th>Tanggal</th><th>UID Karyawan</th><th>Karyawan</th><th>Site</th><th>APD &amp; jadwal aktif per item</th><?php if ($isApdAdministrator) { ?><th>Aksi</th><?php } ?></tr></thead>
           <tbody>
             <?php if (count($riwayat) === 0) { ?><tr><td colspan="<?php echo $isApdAdministrator ? '6' : '5'; ?>" class="apd-empty">Tidak ada riwayat yang sesuai dengan pencarian.</td></tr><?php } ?>
@@ -596,6 +615,93 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
           </tbody>
         </table>
       </div>
+      <div class="apd-pagination" data-apd-pagination-for="jadwal-apd-riwayat">
+        <label> Tampilkan
+          <select class="form-control form-control-sm" data-apd-page-length aria-label="Jumlah riwayat per halaman">
+            <option value="10">10</option>
+            <option value="25">25</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+          </select>
+          data
+        </label>
+        <span class="apd-pagination-info" data-apd-pagination-info></span>
+        <div class="apd-pagination-pages" data-apd-pagination-pages></div>
+      </div>
     </div>
   </section>
 </div>
+<script>
+  (function() {
+    function setupPagination(tableId) {
+      var table = document.getElementById(tableId);
+      var pagination = document.querySelector('[data-apd-pagination-for="' + tableId + '"]');
+      if (!table || !pagination) {
+        return;
+      }
+
+      var bodyRows = Array.prototype.slice.call(table.tBodies[0].rows);
+      var groups = [];
+      if (bodyRows.length && !bodyRows[0].querySelector('.apd-empty')) {
+        if (tableId === 'jadwal-apd-aktif') {
+          for (var index = 0; index < bodyRows.length; index += 2) {
+            groups.push(bodyRows.slice(index, index + 2));
+          }
+        } else {
+          bodyRows.forEach(function(row) {
+            groups.push([row]);
+          });
+        }
+      }
+
+      var lengthSelect = pagination.querySelector('[data-apd-page-length]');
+      var info = pagination.querySelector('[data-apd-pagination-info]');
+      var pages = pagination.querySelector('[data-apd-pagination-pages]');
+      var currentPage = 1;
+
+      function render() {
+        var pageLength = parseInt(lengthSelect.value, 10);
+        var pageCount = Math.max(1, Math.ceil(groups.length / pageLength));
+        currentPage = Math.min(currentPage, pageCount);
+        var start = (currentPage - 1) * pageLength;
+        var end = Math.min(start + pageLength, groups.length);
+
+        groups.forEach(function(group, groupIndex) {
+          group.forEach(function(row) {
+            row.style.display = groupIndex >= start && groupIndex < end ? '' : 'none';
+          });
+        });
+
+        if (groups.length === 0) {
+          info.textContent = 'Tidak ada data';
+        } else {
+          info.textContent = 'Menampilkan ' + (start + 1) + '–' + end + ' dari ' + groups.length + ' data';
+        }
+
+        pages.innerHTML = '';
+        for (var page = 1; page <= pageCount; page += 1) {
+          var button = document.createElement('button');
+          button.type = 'button';
+          button.className = 'btn btn-sm ' + (page === currentPage ? 'btn-success' : 'btn-light');
+          button.textContent = page;
+          button.addEventListener('click', (function(selectedPage) {
+            return function() {
+              currentPage = selectedPage;
+              render();
+            };
+          })(page));
+          pages.appendChild(button);
+        }
+      }
+
+      lengthSelect.addEventListener('change', function() {
+        currentPage = 1;
+        render();
+      });
+      render();
+    }
+
+    setupPagination('jadwal-apd-aktif');
+    setupPagination('jadwal-apd-riwayat');
+  })();
+</script>
