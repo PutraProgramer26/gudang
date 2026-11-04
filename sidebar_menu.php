@@ -254,10 +254,10 @@ else {
     }
 
     ?>
-    <li class="nav-item <?php echo ($_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings') ? 'active' : ''; ?>">
+    <li class="nav-item <?php echo $_GET['module'] == 'surat_jalan' ? 'active' : ''; ?>">
       <a href="?module=surat_jalan">
         <i class="fas fa-file-signature"></i>
-        <p>Surat Jalan</p>
+        <p>Surat Jalan Generator</p>
       </a>
     </li>
     <li class="nav-item <?php echo $_GET['module'] == 'spp' ? 'active' : ''; ?>">
@@ -640,8 +640,7 @@ else {
     <?php
     }
 
-    $isSuratJalanActive = $_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings';
-    echo '<li class="nav-item ' . ($isSuratJalanActive ? 'active' : '') . '"><a href="?module=surat_jalan"><i class="fas fa-file-signature"></i><p>Surat Jalan</p></a></li>';
+    echo '<li class="nav-item ' . ($_GET['module'] == 'surat_jalan' ? 'active' : '') . '"><a href="?module=surat_jalan"><i class="fas fa-file-signature"></i><p>Surat Jalan Generator</p></a></li>';
     echo '<li class="nav-item ' . ($_GET['module'] == 'spp' ? 'active' : '') . '"><a href="?module=spp"><i class="fas fa-clipboard-list"></i><p>SPP</p></a></li>';
     echo '<li class="nav-item ' . ($_GET['module'] == 'jadwal_apd' ? 'active' : '') . '"><a href="?module=jadwal_apd"><i class="fas fa-user-shield"></i><p>Jadwal Pengambilan APD</p></a></li>';
 
@@ -844,8 +843,6 @@ else {
 <?php
     }
     echo '<li class="nav-item ' . ($_GET['module'] == 'jadwal_apd' ? 'active' : '') . '"><a href="?module=jadwal_apd"><i class="fas fa-user-shield"></i><p>Jadwal Pengambilan APD</p></a></li>';
-    $isSuratJalanActive = $_GET['module'] == 'surat_jalan' || $_GET['module'] == 'surat_jalan_settings';
-    echo '<li class="nav-item ' . ($isSuratJalanActive ? 'active' : '') . '"><a href="?module=surat_jalan"><i class="fas fa-file-signature"></i><p>Surat Jalan</p></a></li>';
     echo '<li class="nav-item ' . ($_GET['module'] == 'spp' ? 'active' : '') . '"><a href="?module=spp"><i class="fas fa-clipboard-list"></i><p>SPP</p></a></li>';
   }
 }
