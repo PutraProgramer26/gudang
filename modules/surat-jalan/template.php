@@ -115,6 +115,101 @@ function surat_jalan_replace_text($text, $fields)
   }, $text);
 }
 
+function surat_jalan_docx_part_path($basePath, $target)
+{
+  $path = dirname($basePath) . '/' . str_replace('\\', '/', $target);
+  $segments = array();
+  foreach (explode('/', $path) as $segment) {
+    if ($segment === '..') {
+      array_pop($segments);
+    } elseif ($segment !== '.' && $segment !== '') {
+      $segments[] = $segment;
+    }
+  }
+  return implode('/', $segments);
+}
+
+function surat_jalan_docx_relationships($zip, $partPath)
+{
+  $relationshipPath = dirname($partPath) . '/_rels/' . basename($partPath) . '.rels';
+  $relationships = array();
+  $xml = $zip->getFromName($relationshipPath);
+  if (!$xml || !preg_match_all('/<Relationship\b([^>]*)\/?>/i', $xml, $matches)) {
+    return $relationships;
+  }
+  foreach ($matches[1] as $attributes) {
+    preg_match('/\bId="([^"]+)"/i', $attributes, $idMatch);
+    preg_match('/\bTarget="([^"]+)"/i', $attributes, $targetMatch);
+    if (isset($idMatch[1], $targetMatch[1])) {
+      $resolved = surat_jalan_docx_part_path($partPath, $targetMatch[1]);
+      if ($zip->getFromName($resolved) === false) {
+        $relativeTarget = preg_replace('/^(?:\.\.\/)+/', '', str_replace('\\', '/', $targetMatch[1]));
+        $fallback = dirname($partPath) . '/' . $relativeTarget;
+        if ($zip->getFromName($fallback) !== false) {
+          $resolved = $fallback;
+        }
+      }
+      $relationships[$idMatch[1]] = $resolved;
+    }
+  }
+  return $relationships;
+}
+
+function surat_jalan_docx_images($zip, $xml, $partPath)
+{
+  $relationships = surat_jalan_docx_relationships($zip, $partPath);
+  $images = array();
+  if (!preg_match_all('/(?:r:embed|r:id)="([^"]+)"/i', $xml, $matches)) {
+    return $images;
+  }
+  foreach (array_unique($matches[1]) as $relationshipId) {
+    if (!isset($relationships[$relationshipId])) {
+      continue;
+    }
+    $image = $zip->getFromName($relationships[$relationshipId]);
+    if ($image === false) {
+      continue;
+    }
+    $extension = strtolower(pathinfo($relationships[$relationshipId], PATHINFO_EXTENSION));
+    $mimeTypes = array('jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'gif' => 'image/gif', 'bmp' => 'image/bmp');
+    if (isset($mimeTypes[$extension])) {
+      $images[$relationshipId] = 'data:' . $mimeTypes[$extension] . ';base64,' . base64_encode($image);
+    }
+  }
+  return $images;
+}
+
+function surat_jalan_docx_render_fragment($xml, $fields, $images)
+{
+  $xml = preg_replace_callback('/<w:drawing\b.*?<\/w:drawing>|<w:pict\b.*?<\/w:pict>/is', function ($match) use ($images) {
+    if (preg_match('/(?:r:embed|r:id)="([^"]+)"/i', $match[0], $embed)) {
+      if (isset($images[$embed[1]])) {
+        return '<img class="template-image" src="' . $images[$embed[1]] . '" alt="">';
+      }
+    }
+    return '';
+  }, $xml);
+  $html = '';
+  preg_match_all('/<w:tbl\b.*?<\/w:tbl>|<w:p\b.*?<\/w:p>/is', $xml, $blocks);
+  foreach ($blocks[0] as $block) {
+    if (preg_match('/^<w:tbl\b/is', $block)) {
+      $html .= surat_jalan_render_docx_table($block, $fields, $images);
+      continue;
+    }
+    $text = surat_jalan_xml_text($block);
+    $text = surat_jalan_replace_text($text, $fields);
+    $text = nl2br(surat_jalan_h($text));
+    preg_match_all('/<img class="template-image" src="([^"]+)" alt="">/', $block, $imageTags);
+    foreach ($imageTags[1] as $image) {
+      $text .= '<img class="template-image" src="' . $image . '" alt="">';
+    }
+    if (trim(strip_tags($text)) !== '' || count($imageTags[1]) > 0) {
+      $html .= '<p>' . $text . '</p>';
+    }
+  }
+  return $html;
+}
+
 function surat_jalan_docx_html($absolutePath, $fields, $items, $tableConfig)
 {
   $zip = new ZipArchive();
@@ -122,10 +217,30 @@ function surat_jalan_docx_html($absolutePath, $fields, $items, $tableConfig)
     throw new RuntimeException('Template Word tidak dapat dibuka untuk PDF.');
   }
   $xml = $zip->getFromName('word/document.xml');
+  if (!$xml) {
+    $zip->close();
+    throw new RuntimeException('Template Word tidak memiliki document.xml yang valid.');
+  }
+  $headerHtml = '';
+  $headerParts = array();
+  for ($headerIndex = 1; $headerIndex <= 9; $headerIndex++) {
+    $headerPath = 'word/header' . $headerIndex . '.xml';
+    $headerXml = $zip->getFromName($headerPath);
+    if ($headerXml) {
+      $headerParts[$headerPath] = $headerXml;
+    }
+  }
+  foreach ($headerParts as $headerPath => $headerXml) {
+    $headerHtml .= '<div class="template-header">' . surat_jalan_docx_render_fragment(
+      $headerXml,
+      $fields,
+      surat_jalan_docx_images($zip, $headerXml, $headerPath)
+    ) . '</div>';
+  }
   $body = preg_replace('/^.*?<w:body\b[^>]*>/is', '', $xml);
   $body = preg_replace('/<\/w:body>.*$/is', '', $body);
   $parts = preg_split('/(<w:tbl\b.*?<\/w:tbl>)/is', $body, -1, PREG_SPLIT_DELIM_CAPTURE);
-  $html = '';
+  $html = $headerHtml;
   $tableIndex = 0;
   foreach ($parts as $part) {
     if (preg_match('/^<w:tbl\b/is', $part)) {
@@ -137,21 +252,13 @@ function surat_jalan_docx_html($absolutePath, $fields, $items, $tableConfig)
       $tableIndex++;
       continue;
     }
-    preg_match_all('/<w:p\b.*?<\/w:p>/is', $part, $paragraphs);
-    foreach ($paragraphs[0] as $paragraph) {
-      $text = surat_jalan_xml_text($paragraph);
-      $text = surat_jalan_replace_text($text, $fields);
-      $text = nl2br(surat_jalan_h($text));
-      if (trim(strip_tags($text)) !== '') {
-        $html .= '<p>' . $text . '</p>';
-      }
-    }
+    $html .= surat_jalan_docx_render_fragment($part, $fields, surat_jalan_docx_images($zip, $part, 'word/document.xml'));
   }
   $zip->close();
   return $html;
 }
 
-function surat_jalan_render_docx_table($xml, $fields)
+function surat_jalan_render_docx_table($xml, $fields, $images = array())
 {
   $html = '<table class="template-table">';
   preg_match_all('/<w:tr\b.*?<\/w:tr>/is', $xml, $rows);
@@ -161,7 +268,12 @@ function surat_jalan_render_docx_table($xml, $fields)
     foreach ($cells[0] as $cell) {
       $text = surat_jalan_xml_text($cell);
       $text = surat_jalan_replace_text($text, $fields);
-      $html .= '<td>' . nl2br(surat_jalan_h($text)) . '</td>';
+      $cellHtml = nl2br(surat_jalan_h($text));
+      preg_match_all('/<img class="template-image" src="([^"]+)" alt="">/', $cell, $imageTags);
+      foreach ($imageTags[1] as $image) {
+        $cellHtml .= '<img class="template-image" src="' . $image . '" alt="">';
+      }
+      $html .= '<td>' . $cellHtml . '</td>';
     }
     $html .= '</tr>';
   }
@@ -190,7 +302,7 @@ function surat_jalan_pdf_output($content)
 {
   require_once dirname(__DIR__, 2) . '/assets/js/plugin/dompdf/autoload.inc.php';
   $html = '<!doctype html><html><head><meta charset="utf-8"><style>
-@page{margin:18mm 16mm}body{font-family:DejaVu Sans,Arial,sans-serif;font-size:11px;color:#222;line-height:1.35}p{margin:0 0 7px;min-height:12px}.template-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.template-table td,.template-table th{border:1px solid #444;padding:5px;vertical-align:top}.template-table th{font-weight:bold;background:#f2f2f2}.items-table th{text-align:center}.items-table td{height:20px}
+@page{margin:18mm 16mm}body{font-family:DejaVu Sans,Arial,sans-serif;font-size:11px;color:#222;line-height:1.35}p{margin:0 0 7px;min-height:12px}.template-header{margin:0 0 12px;padding-bottom:4px}.template-header p{margin:0;min-height:0}.template-image{display:inline-block;max-width:100%;max-height:42mm;vertical-align:middle}.template-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.template-table td,.template-table th{border:1px solid #444;padding:5px;vertical-align:top}.template-table th{font-weight:bold;background:#f2f2f2}.items-table th{text-align:center}.items-table td{height:20px}
 </style></head><body>' . $content . '</body></html>';
   $dompdf = new Dompdf\Dompdf();
   $dompdf->loadHtml($html, 'UTF-8');

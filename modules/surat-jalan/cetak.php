@@ -51,7 +51,7 @@ try {
   exit($exception->getMessage());
 }
 $html = '<!doctype html><html><head><meta charset="utf-8"><style>
-@page{margin:18mm 16mm}body{font-family:DejaVu Sans,Arial,sans-serif;font-size:11px;color:#222;line-height:1.35}p{margin:0 0 7px;min-height:12px}.template-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.template-table td,.template-table th{border:1px solid #444;padding:5px;vertical-align:top}.template-table th{font-weight:bold;background:#f2f2f2}.items-table th{text-align:center}.items-table td{height:20px}
+@page{margin:18mm 16mm}body{font-family:DejaVu Sans,Arial,sans-serif;font-size:11px;color:#222;line-height:1.35}p{margin:0 0 7px;min-height:12px}.template-header{margin:0 0 12px;padding-bottom:4px}.template-header p{margin:0;min-height:0}.template-image{display:inline-block;max-width:100%;max-height:42mm;vertical-align:middle}.template-table{width:100%;border-collapse:collapse;margin:8px 0 12px}.template-table td,.template-table th{border:1px solid #444;padding:5px;vertical-align:top}.template-table th{font-weight:bold;background:#f2f2f2}.items-table th{text-align:center}.items-table td{height:20px}
 </style></head><body>' . $content . '</body></html>';
 $dompdf = new Dompdf\Dompdf();
 $dompdf->loadHtml($html, 'UTF-8');
