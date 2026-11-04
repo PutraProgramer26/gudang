@@ -25,7 +25,8 @@ if (!$document) {
 $storedPdf = dirname(__DIR__, 2) . '/uploads/surat-jalan/' . basename((string) $document['pdf_path']);
 if (!empty($document['pdf_path']) && is_file($storedPdf)) {
   header('Content-Type: application/pdf');
-  header('Content-Disposition: attachment; filename="surat-jalan-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $document['nomor_surat']) . '.pdf"');
+  $disposition = isset($_GET['view']) && $_GET['view'] === '1' ? 'inline' : 'attachment';
+  header('Content-Disposition: ' . $disposition . '; filename="surat-jalan-' . preg_replace('/[^A-Za-z0-9_-]/', '-', $document['nomor_surat']) . '.pdf"');
   readfile($storedPdf);
   exit;
 }

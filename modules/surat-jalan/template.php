@@ -66,7 +66,12 @@ function surat_jalan_table_config($xml)
           $columns[$position] = 'keterangan';
         }
       }
-      return array('table_index' => $index, 'columns' => $columns);
+      return array(
+        'table_index' => $index,
+        'columns' => $columns,
+        'header_xml' => $rows[0][0],
+        'row_xml' => isset($rows[0][1]) ? $rows[0][1] : $rows[0][0]
+      );
     }
   }
   return array('table_index' => -1, 'columns' => array());
@@ -113,6 +118,88 @@ function surat_jalan_replace_text($text, $fields)
     $key = strtolower(trim(preg_replace('/[^a-zA-Z0-9]+/', '_', $match[1]), '_'));
     return $match[1] . $match[2] . ' ' . (isset($fields[$key]) ? (string) $fields[$key] : '');
   }, $text);
+}
+
+function surat_jalan_docx_attr($xml, $name)
+{
+  return preg_match('/\b' . preg_quote($name, '/') . '="([^"]*)"/i', $xml, $match) ? $match[1] : null;
+}
+
+function surat_jalan_docx_run_style($runProperties)
+{
+  $styles = array();
+  if (preg_match('/<w:b(?:\s[^>]*)?\/?>/i', $runProperties) && !preg_match('/<w:b[^>]*w:val="(?:0|false|off)"/i', $runProperties)) {
+    $styles[] = 'font-weight:bold';
+  }
+  if (preg_match('/<w:i(?:\s[^>]*)?\/?>/i', $runProperties) && !preg_match('/<w:i[^>]*w:val="(?:0|false|off)"/i', $runProperties)) {
+    $styles[] = 'font-style:italic';
+  }
+  if (preg_match('/<w:u\b[^>]*w:val="([^"]+)"/i', $runProperties, $underline) && strtolower($underline[1]) !== 'none') {
+    $styles[] = 'text-decoration:underline';
+  } elseif (preg_match('/<w:u(?:\s[^>]*)?\/?>/i', $runProperties)) {
+    $styles[] = 'text-decoration:underline';
+  }
+  $color = null;
+  preg_match('/<w:color\b[^>]*w:val="([^"]+)"/i', $runProperties, $colorMatch);
+  if (isset($colorMatch[1])) {
+    $color = $colorMatch[1];
+  }
+  if ($color && strtolower($color) !== 'auto') {
+    $styles[] = 'color:#' . preg_replace('/[^a-f0-9]/i', '', $color);
+  }
+  if (preg_match('/<w:sz\b[^>]*w:val="(\d+)"/i', $runProperties, $size)) {
+    $styles[] = 'font-size:' . ((int) $size[1] / 2) . 'pt';
+  }
+  if (preg_match('/<w:rFonts\b[^>]*w:ascii="([^"]+)"/i', $runProperties, $font)) {
+    $styles[] = 'font-family:' . surat_jalan_h($font[1]);
+  }
+  if (preg_match('/<w:vertAlign\b[^>]*w:val="superscript"/i', $runProperties)) {
+    $styles[] = 'vertical-align:super;font-size:smaller';
+  } elseif (preg_match('/<w:vertAlign\b[^>]*w:val="subscript"/i', $runProperties)) {
+    $styles[] = 'vertical-align:sub;font-size:smaller';
+  }
+  return implode(';', $styles);
+}
+
+function surat_jalan_docx_paragraph_style($paragraph)
+{
+  $style = array();
+  if (preg_match('/<w:jc\b[^>]*w:val="([^"]+)"/i', $paragraph, $alignment)) {
+    $alignments = array('center' => 'center', 'right' => 'right', 'both' => 'justify', 'justify' => 'justify', 'left' => 'left');
+    if (isset($alignments[strtolower($alignment[1])])) {
+      $style[] = 'text-align:' . $alignments[strtolower($alignment[1])];
+    }
+  }
+  if (preg_match('/<w:ind\b[^>]*w:left="(-?\d+)"/i', $paragraph, $left)) {
+    $style[] = 'padding-left:' . max(0, ((int) $left[1] / 20)) . 'pt';
+  }
+  if (preg_match('/<w:ind\b[^>]*w:right="(-?\d+)"/i', $paragraph, $right)) {
+    $style[] = 'padding-right:' . max(0, ((int) $right[1] / 20)) . 'pt';
+  }
+  if (preg_match('/<w:spacing\b[^>]*w:after="(\d+)"/i', $paragraph, $after)) {
+    $style[] = 'margin-bottom:' . ((int) $after[1] / 20) . 'pt';
+  }
+  return implode(';', $style);
+}
+
+function surat_jalan_docx_run_html($run, $fields)
+{
+  preg_match('/<w:rPr\b.*?<\/w:rPr>/is', $run, $properties);
+  $style = isset($properties[0]) ? surat_jalan_docx_run_style($properties[0]) : '';
+  preg_match_all('/<w:t\b[^>]*>(.*?)<\/w:t>|<w:tab[^>]*\/>|<w:br[^>]*\/>/is', $run, $parts);
+  $text = '';
+  foreach ($parts[0] as $part) {
+    if (preg_match('/<w:t\b[^>]*>(.*?)<\/w:t>/is', $part, $textMatch)) {
+      $text .= html_entity_decode($textMatch[1], ENT_QUOTES, 'UTF-8');
+    } elseif (preg_match('/<w:tab/i', $part)) {
+      $text .= "\t";
+    } else {
+      $text .= "\n";
+    }
+  }
+  $text = surat_jalan_replace_text($text, $fields);
+  $content = nl2br(surat_jalan_h($text));
+  return $content === '' ? '' : '<span' . ($style !== '' ? ' style="' . $style . '"' : '') . '>' . $content . '</span>';
 }
 
 function surat_jalan_docx_part_path($basePath, $target)
@@ -196,15 +283,18 @@ function surat_jalan_docx_render_fragment($xml, $fields, $images)
       $html .= surat_jalan_render_docx_table($block, $fields, $images);
       continue;
     }
-    $text = surat_jalan_xml_text($block);
-    $text = surat_jalan_replace_text($text, $fields);
-    $text = nl2br(surat_jalan_h($text));
+    $paragraphStyle = surat_jalan_docx_paragraph_style($block);
+    $text = '';
+    preg_match_all('/<w:r\b.*?<\/w:r>/is', $block, $runs);
+    foreach ($runs[0] as $run) {
+      $text .= surat_jalan_docx_run_html($run, $fields);
+    }
     preg_match_all('/<img class="template-image" src="([^"]+)" alt="">/', $block, $imageTags);
     foreach ($imageTags[1] as $image) {
       $text .= '<img class="template-image" src="' . $image . '" alt="">';
     }
     if (trim(strip_tags($text)) !== '' || count($imageTags[1]) > 0) {
-      $html .= '<p>' . $text . '</p>';
+      $html .= '<p' . ($paragraphStyle !== '' ? ' style="' . $paragraphStyle . '"' : '') . '>' . $text . '</p>';
     }
   }
   return $html;
@@ -239,13 +329,24 @@ function surat_jalan_docx_html($absolutePath, $fields, $items, $tableConfig)
   }
   $body = preg_replace('/^.*?<w:body\b[^>]*>/is', '', $xml);
   $body = preg_replace('/<\/w:body>.*$/is', '', $body);
+  if (!isset($tableConfig['header_xml']) || !isset($tableConfig['row_xml'])) {
+    preg_match_all('/<w:tbl\b.*?<\/w:tbl>/is', $body, $templateTables);
+    $itemTableIndex = isset($tableConfig['table_index']) ? (int) $tableConfig['table_index'] : -1;
+    if ($itemTableIndex >= 0 && isset($templateTables[0][$itemTableIndex])) {
+      preg_match_all('/<w:tr\b.*?<\/w:tr>/is', $templateTables[0][$itemTableIndex], $templateRows);
+      if (isset($templateRows[0][0])) {
+        $tableConfig['header_xml'] = $templateRows[0][0];
+        $tableConfig['row_xml'] = isset($templateRows[0][1]) ? $templateRows[0][1] : $templateRows[0][0];
+      }
+    }
+  }
   $parts = preg_split('/(<w:tbl\b.*?<\/w:tbl>)/is', $body, -1, PREG_SPLIT_DELIM_CAPTURE);
   $html = $headerHtml;
   $tableIndex = 0;
   foreach ($parts as $part) {
     if (preg_match('/^<w:tbl\b/is', $part)) {
       if ((int) $tableConfig['table_index'] === $tableIndex) {
-        $html .= surat_jalan_render_items_table($items, $tableConfig['columns']);
+        $html .= surat_jalan_render_items_table($items, $tableConfig['columns'], $tableConfig);
       } else {
         $html .= surat_jalan_render_docx_table($part, $fields);
       }
@@ -266,9 +367,17 @@ function surat_jalan_render_docx_table($xml, $fields, $images = array())
     $html .= '<tr>';
     preg_match_all('/<w:tc\b.*?<\/w:tc>/is', $row, $cells);
     foreach ($cells[0] as $cell) {
-      $text = surat_jalan_xml_text($cell);
-      $text = surat_jalan_replace_text($text, $fields);
-      $cellHtml = nl2br(surat_jalan_h($text));
+      $cellHtml = '';
+      preg_match_all('/<w:p\b.*?<\/w:p>/is', $cell, $paragraphs);
+      foreach ($paragraphs[0] as $paragraph) {
+        $paragraphStyle = surat_jalan_docx_paragraph_style($paragraph);
+        $paragraphHtml = '';
+        preg_match_all('/<w:r\b.*?<\/w:r>/is', $paragraph, $runs);
+        foreach ($runs[0] as $run) {
+          $paragraphHtml .= surat_jalan_docx_run_html($run, $fields);
+        }
+        $cellHtml .= '<p' . ($paragraphStyle !== '' ? ' style="' . $paragraphStyle . '"' : '') . '>' . $paragraphHtml . '</p>';
+      }
       preg_match_all('/<img class="template-image" src="([^"]+)" alt="">/', $cell, $imageTags);
       foreach ($imageTags[1] as $image) {
         $cellHtml .= '<img class="template-image" src="' . $image . '" alt="">';
@@ -280,22 +389,68 @@ function surat_jalan_render_docx_table($xml, $fields, $images = array())
   return $html . '</table>';
 }
 
-function surat_jalan_render_items_table($items, $columns)
+function surat_jalan_render_items_table($items, $columns, $tableConfig = array())
 {
+  $headerCells = array();
+  $rowCells = array();
+  if (!empty($tableConfig['header_xml'])) {
+    preg_match_all('/<w:tc\b.*?<\/w:tc>/is', $tableConfig['header_xml'], $headerMatches);
+    $headerCells = $headerMatches[0];
+  }
+  if (!empty($tableConfig['row_xml'])) {
+    preg_match_all('/<w:tc\b.*?<\/w:tc>/is', $tableConfig['row_xml'], $rowMatches);
+    $rowCells = $rowMatches[0];
+  }
   $html = '<table class="template-table items-table"><thead><tr>';
-  foreach ($columns as $column) {
-    $html .= '<th>' . surat_jalan_h(ucwords(str_replace('_', ' ', $column))) . '</th>';
+  foreach ($columns as $position => $column) {
+    $headerCell = isset($headerCells[$position]) ? $headerCells[$position] : '';
+    $html .= '<th' . surat_jalan_docx_cell_style($headerCell) . '>' .
+      (isset($headerCells[$position]) ? surat_jalan_docx_cell_text($headerCell, array()) : surat_jalan_h(ucwords(str_replace('_', ' ', $column)))) . '</th>';
   }
   $html .= '</tr></thead><tbody>';
   foreach ($items as $item) {
     $html .= '<tr>';
-    foreach ($columns as $column) {
+    foreach ($columns as $position => $column) {
       $value = isset($item[$column]) ? $item[$column] : '';
-      $html .= '<td>' . surat_jalan_h($value) . '</td>';
+      $rowCell = isset($rowCells[$position]) ? $rowCells[$position] : '';
+      $html .= '<td' . surat_jalan_docx_cell_style($rowCell) . '>' .
+        (isset($rowCells[$position]) ? surat_jalan_docx_cell_text($rowCell, array($value)) : surat_jalan_h($value)) . '</td>';
     }
+
     $html .= '</tr>';
   }
   return $html . '</tbody></table>';
+}
+
+function surat_jalan_docx_cell_style($cell)
+{
+  preg_match('/<w:p\b.*?<\/w:p>/is', $cell, $paragraph);
+  if (!isset($paragraph[0])) {
+    return '';
+  }
+  $style = surat_jalan_docx_paragraph_style($paragraph[0]);
+  return $style === '' ? '' : ' style="' . $style . '"';
+}
+
+function surat_jalan_docx_cell_text($cell, $values)
+{
+  preg_match_all('/<w:p\b.*?<\/w:p>/is', $cell, $paragraphs);
+  $html = '';
+  foreach ($paragraphs[0] as $paragraph) {
+    preg_match_all('/<w:r\b.*?<\/w:r>/is', $paragraph, $runs);
+    $paragraphHtml = '';
+    foreach ($runs[0] as $run) {
+      if (count($values) > 0) {
+        preg_match('/<w:rPr\b.*?<\/w:rPr>/is', $run, $properties);
+        $style = isset($properties[0]) ? surat_jalan_docx_run_style($properties[0]) : '';
+        $paragraphHtml .= '<span' . ($style !== '' ? ' style="' . $style . '"' : '') . '>' . surat_jalan_h($values[0]) . '</span>';
+        break;
+      }
+      $paragraphHtml .= surat_jalan_docx_run_html($run, array());
+    }
+    $html .= $paragraphHtml;
+  }
+  return $html;
 }
 
 function surat_jalan_pdf_output($content)
