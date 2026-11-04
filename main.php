@@ -60,6 +60,7 @@ else { ?>
     <!-- CSS Files -->
     <link rel="stylesheet" href="assets/css/bootstrap.min.css">
     <link rel="stylesheet" href="assets/css/atlantis.min.css">
+    <link rel="stylesheet" href="assets/css/theme.css">
 
     <!-- jQuery Core -->
     <script src="assets/js/core/jquery.3.2.1.min.js"></script>
@@ -95,6 +96,11 @@ else { ?>
         <nav class="navbar navbar-header navbar-expand-lg" data-background-color="purple2">
           <div class="container-fluid">
             <ul class="navbar-nav topbar-nav ml-md-auto align-items-center">
+              <li class="nav-item">
+                <button type="button" class="theme-toggle" id="theme-toggle" aria-pressed="false" title="Gunakan tema gelap">
+                  <i class="fas fa-moon mr-1" aria-hidden="true"></i>Gelap
+                </button>
+              </li>
               <!-- data user login -->
               <li class="nav-item dropdown hidden-caret">
                 <a class="dropdown-toggle profile-pic" data-toggle="dropdown" href="javascript:void(0)" aria-expanded="false">
@@ -226,6 +232,7 @@ else { ?>
     <!-- Custom Scripts -->
     <script src="assets/js/plugin.js"></script>
     <script src="assets/js/form-validation.js"></script>
+    <script src="assets/js/theme.js"></script>
   </body>
 
   </html>
