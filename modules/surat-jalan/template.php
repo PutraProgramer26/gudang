@@ -450,6 +450,9 @@ function surat_jalan_docx_cell_text($cell, $values)
     }
     $html .= $paragraphHtml;
   }
+  if (count($values) > 0 && trim(strip_tags($html)) === '') {
+    $html = surat_jalan_h($values[0]);
+  }
   return $html;
 }
 
