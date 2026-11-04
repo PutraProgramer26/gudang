@@ -133,6 +133,13 @@ while ($employeeRow = mysqli_fetch_assoc($employeeResult)) {
 
 $isApdAdministrator = isset($_SESSION['hak_akses']) && $_SESSION['hak_akses'] === 'Administrator';
 $canRecordApd = isset($_SESSION['hak_akses']) && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
+$editBiodata = isset($_GET['edit_biodata']) && $_GET['edit_biodata'] === '1' && $isApdAdministrator;
+$editBiodataName = $editBiodata && isset($_GET['nama_karyawan_lama']) && is_string($_GET['nama_karyawan_lama'])
+  ? trim($_GET['nama_karyawan_lama']) : '';
+$editBiodataUid = $editBiodata && isset($_GET['uid_karyawan_lama']) && is_string($_GET['uid_karyawan_lama'])
+  ? trim($_GET['uid_karyawan_lama']) : '';
+$editBiodataSite = $editBiodata && isset($_GET['site_lama']) && is_string($_GET['site_lama'])
+  ? trim($_GET['site_lama']) : '';
 $editRecord = null;
 $editItems = array();
 $editId = $isApdAdministrator && isset($_GET['edit_id']) ? filter_var($_GET['edit_id'], FILTER_VALIDATE_INT) : false;
@@ -251,6 +258,7 @@ mysqli_stmt_close($historyStatement);
 $pesanSukses = isset($_GET['pesan']) && $_GET['pesan'] === '1';
 $pesanDiperbarui = isset($_GET['pesan']) && $_GET['pesan'] === '2';
 $pesanDihapus = isset($_GET['pesan']) && $_GET['pesan'] === '3';
+$pesanBiodata = isset($_GET['pesan']) && $_GET['pesan'] === '5';
 $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
 ?>
 <style>
@@ -305,7 +313,39 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
   <?php if ($pesanSukses) { ?><div class="alert alert-success mt-3"><i class="fas fa-check-circle mr-2"></i>Pengambilan APD berhasil dicatat. Jadwal berikutnya dihitung enam bulan dari tanggal pengambilan ini.</div><?php } ?>
   <?php if ($pesanDiperbarui) { ?><div class="alert alert-success mt-3"><i class="fas fa-check-circle mr-2"></i>Riwayat pengambilan APD berhasil diperbarui.</div><?php } ?>
   <?php if ($pesanDihapus) { ?><div class="alert alert-success mt-3"><i class="fas fa-check-circle mr-2"></i>Riwayat pengambilan APD berhasil dihapus.</div><?php } ?>
+  <?php if ($pesanBiodata) { ?><div class="alert alert-success mt-3"><i class="fas fa-check-circle mr-2"></i>Biodata karyawan berhasil diperbarui pada seluruh jadwal dan riwayat terkait.</div><?php } ?>
   <?php if ($pesanError !== '') { ?><div class="alert alert-danger mt-3"><i class="fas fa-exclamation-circle mr-2"></i><?php echo jadwal_apd_h($pesanError); ?></div><?php } ?>
+  <?php if ($editBiodata && $editBiodataName !== '' && $editBiodataSite !== '') { ?>
+    <section class="apd-panel">
+      <div class="apd-panel-head">
+        <h3><i class="fas fa-user-edit mr-2 text-success"></i>Edit Biodata Karyawan</h3>
+        <a class="btn btn-light btn-sm" href="main.php?module=jadwal_apd">Batal</a>
+      </div>
+      <div class="apd-panel-body">
+        <p class="text-muted small">Perubahan akan diterapkan pada seluruh jadwal dan riwayat dengan biodata lama ini. Data item APD tidak berubah.</p>
+        <form action="modules/jadwal-apd/proses.php" method="post" class="row align-items-end">
+          <input type="hidden" name="csrf_token" value="<?php echo jadwal_apd_h($_SESSION['csrf_jadwal_apd']); ?>">
+          <input type="hidden" name="aksi" value="ubah_biodata">
+          <input type="hidden" name="nama_karyawan_lama" value="<?php echo jadwal_apd_h($editBiodataName); ?>">
+          <input type="hidden" name="uid_karyawan_lama" value="<?php echo jadwal_apd_h($editBiodataUid); ?>">
+          <input type="hidden" name="site_lama" value="<?php echo jadwal_apd_h($editBiodataSite); ?>">
+          <div class="form-group col-md-4">
+            <label for="edit_biodata_nama">Nama karyawan</label>
+            <input id="edit_biodata_nama" name="nama_karyawan" class="form-control" maxlength="150" value="<?php echo jadwal_apd_h($editBiodataName); ?>" required>
+          </div>
+          <div class="form-group col-md-4">
+            <label for="edit_biodata_uid">UID karyawan</label>
+            <input id="edit_biodata_uid" name="uid_karyawan" class="form-control" maxlength="50" value="<?php echo jadwal_apd_h($editBiodataUid); ?>" required>
+          </div>
+          <div class="form-group col-md-4">
+            <label for="edit_biodata_site">Site</label>
+            <input id="edit_biodata_site" name="site" class="form-control" maxlength="120" value="<?php echo jadwal_apd_h($editBiodataSite); ?>" required>
+          </div>
+          <div class="col-12"><button class="btn btn-success" type="submit"><i class="fas fa-save mr-1"></i>Simpan Biodata</button></div>
+        </form>
+      </div>
+    </section>
+  <?php } ?>
 
   <?php if ($editId && !$editRecord) { ?>
     <div class="alert alert-warning mt-3">Catatan pengambilan yang akan diubah tidak ditemukan.</div>
@@ -520,7 +560,12 @@ $pesanError = isset($_GET['error']) ? trim($_GET['error']) : '';
             <tr>
               <td><span class="font-weight-bold"><?php echo jadwal_apd_h($row['nama_karyawan']); ?></span><small class="d-block text-muted">UID: <?php echo jadwal_apd_h($row['uid_karyawan'] ?: '-'); ?> · <?php echo jadwal_apd_h($row['site']); ?></small></td>
               <td><span class="apd-status <?php echo jadwal_apd_h($row['status']['class']); ?>"><?php echo jadwal_apd_h($row['status']['label']); ?></span></td>
-              <td><button class="btn btn-sm btn-outline-success" type="button" data-toggle="collapse" data-target="#<?php echo jadwal_apd_h($row['detail_id']); ?>" aria-expanded="false" aria-controls="<?php echo jadwal_apd_h($row['detail_id']); ?>"><i class="fas fa-eye mr-1"></i>Lihat detail</button></td>
+              <td>
+                <button class="btn btn-sm btn-outline-success" type="button" data-toggle="collapse" data-target="#<?php echo jadwal_apd_h($row['detail_id']); ?>" aria-expanded="false" aria-controls="<?php echo jadwal_apd_h($row['detail_id']); ?>"><i class="fas fa-eye mr-1"></i>Lihat detail</button>
+                <?php if ($isApdAdministrator) { ?>
+                  <a class="btn btn-sm btn-outline-primary" href="main.php?module=jadwal_apd&amp;edit_biodata=1&amp;nama_karyawan_lama=<?php echo rawurlencode($row['nama_karyawan']); ?>&amp;uid_karyawan_lama=<?php echo rawurlencode($row['uid_karyawan']); ?>&amp;site_lama=<?php echo rawurlencode($row['site']); ?>" title="Edit biodata"><i class="fas fa-user-edit"></i></a>
+                <?php } ?>
+              </td>
             </tr>
             <tr class="bg-light">
               <td colspan="3" class="p-0 border-0">

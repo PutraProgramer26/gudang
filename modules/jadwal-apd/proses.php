@@ -31,11 +31,53 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST' ||
 $action = isset($_POST['aksi']) && is_string($_POST['aksi']) ? $_POST['aksi'] : 'tambah';
 $isAdministrator = $_SESSION['hak_akses'] === 'Administrator';
 $canRecordApd = in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
+$isBiodataEdit = $action === 'ubah_biodata';
 if ($action === 'tambah' && !$canRecordApd) {
   jadwal_apd_redirect_error('Role Kepala Gudang hanya dapat melihat jadwal dan riwayat APD.');
 }
-if (in_array($action, array('ubah', 'hapus'), true) && !$isAdministrator) {
+if (in_array($action, array('ubah', 'hapus', 'ubah_biodata'), true) && !$isAdministrator) {
   jadwal_apd_redirect_error('Fitur edit dan hapus riwayat hanya dapat digunakan oleh Administrator.');
+}
+
+if ($isBiodataEdit) {
+  $oldName = isset($_POST['nama_karyawan_lama']) && is_string($_POST['nama_karyawan_lama']) ? trim($_POST['nama_karyawan_lama']) : '';
+  $oldUid = isset($_POST['uid_karyawan_lama']) && is_string($_POST['uid_karyawan_lama']) ? trim($_POST['uid_karyawan_lama']) : '';
+  $oldSite = isset($_POST['site_lama']) && is_string($_POST['site_lama']) ? trim($_POST['site_lama']) : '';
+  $newName = isset($_POST['nama_karyawan']) && is_string($_POST['nama_karyawan']) ? trim($_POST['nama_karyawan']) : '';
+  $newUid = isset($_POST['uid_karyawan']) && is_string($_POST['uid_karyawan']) ? trim($_POST['uid_karyawan']) : '';
+  $newSite = isset($_POST['site']) && is_string($_POST['site']) ? trim($_POST['site']) : '';
+  if ($oldName === '' || $oldSite === '' ||
+      $newName === '' || strlen($newName) > 150 || $newUid === '' || strlen($newUid) > 50 ||
+      $newSite === '' || strlen($newSite) > 120) {
+    jadwal_apd_redirect_error('Nama karyawan, UID, dan site wajib diisi dengan benar.');
+  }
+  if (!mysqli_begin_transaction($mysqli)) {
+    jadwal_apd_redirect_error('Biodata karyawan belum dapat diperbarui. Silakan coba kembali.');
+  }
+  $updateBiodata = mysqli_prepare(
+    $mysqli,
+    'UPDATE tbl_jadwal_apd
+     SET nama_karyawan = ?, uid_karyawan = ?, site = ?
+     WHERE nama_karyawan = ? AND uid_karyawan <=> ? AND site = ?'
+  );
+  if (!$updateBiodata) {
+    mysqli_rollback($mysqli);
+    jadwal_apd_redirect_error('Biodata karyawan belum dapat diperbarui. Silakan coba kembali.');
+  }
+  mysqli_stmt_bind_param($updateBiodata, 'ssssss', $newName, $newUid, $newSite, $oldName, $oldUid, $oldSite);
+  $updated = mysqli_stmt_execute($updateBiodata);
+  $updatedRows = mysqli_stmt_affected_rows($updateBiodata);
+  if (!$updated) {
+    error_log('Jadwal APD: gagal memperbarui biodata karyawan: ' . mysqli_stmt_error($updateBiodata));
+  }
+  mysqli_stmt_close($updateBiodata);
+  if (!$updated || $updatedRows < 1) {
+    mysqli_rollback($mysqli);
+    jadwal_apd_redirect_error('Biodata karyawan tidak ditemukan atau gagal diperbarui.');
+  }
+  mysqli_commit($mysqli);
+  header('location: ../../main.php?module=jadwal_apd&pesan=5');
+  exit;
 }
 
 if ($action === 'hapus') {

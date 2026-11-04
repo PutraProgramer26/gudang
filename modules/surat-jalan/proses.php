@@ -16,7 +16,7 @@ function surat_jalan_redirect($message, $success = false)
 }
 function surat_jalan_manager()
 {
-  return isset($_SESSION['hak_akses']) && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true);
+  return isset($_SESSION['hak_akses']) && $_SESSION['hak_akses'] === 'Administrator';
 }
 function surat_jalan_load_items($mysqli, $documentId)
 {

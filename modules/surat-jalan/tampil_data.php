@@ -6,6 +6,24 @@ if (basename($_SERVER['PHP_SELF']) === basename(__FILE__)) {
 require_once __DIR__ . '/schema.php';
 require_once __DIR__ . '/template.php';
 surat_jalan_ensure_schema($mysqli);
+if (!isset($_SESSION['hak_akses']) || $_SESSION['hak_akses'] !== 'Administrator') {
+  ?>
+  <style>
+    .sj-development-notice { max-width: 720px; margin: 70px auto; padding: 48px 32px; text-align: center; background: #fff; border: 1px solid #dce6e3; border-radius: 12px; box-shadow: 0 8px 26px rgba(32,52,58,.08); color: #20343a; }
+    .sj-development-notice i { color: #087f72; font-size: 42px; }
+    .sj-development-notice h2 { margin: 18px 0 8px; font-size: 24px; font-weight: 800; }
+    .sj-development-notice p { margin: 0; color: #718083; }
+  </style>
+  <div class="page-inner">
+    <div class="sj-development-notice">
+      <i class="fas fa-tools" aria-hidden="true"></i>
+      <h2>Dalam pengembangan oleh tim</h2>
+      <p>Surat Jalan Generator saat ini hanya dapat diakses oleh Administrator.</p>
+    </div>
+  </div>
+  <?php
+  return;
+}
 if (empty($_SESSION['csrf_surat_jalan'])) {
   $_SESSION['csrf_surat_jalan'] = bin2hex(random_bytes(32));
 }

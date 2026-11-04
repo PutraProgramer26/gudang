@@ -843,6 +843,7 @@ else {
 <?php
     }
     echo '<li class="nav-item ' . ($_GET['module'] == 'jadwal_apd' ? 'active' : '') . '"><a href="?module=jadwal_apd"><i class="fas fa-user-shield"></i><p>Jadwal Pengambilan APD</p></a></li>';
+    echo '<li class="nav-item ' . ($_GET['module'] == 'surat_jalan' ? 'active' : '') . '"><a href="?module=surat_jalan"><i class="fas fa-file-signature"></i><p>Surat Jalan Generator</p></a></li>';
     echo '<li class="nav-item ' . ($_GET['module'] == 'spp' ? 'active' : '') . '"><a href="?module=spp"><i class="fas fa-clipboard-list"></i><p>SPP</p></a></li>';
   }
 }

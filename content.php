@@ -89,7 +89,7 @@ else {
     // panggil file form entri barang keluar
     include "modules/barang-keluar/form_entri.php";
   }
-  elseif ($_GET['module'] == 'surat_jalan' && in_array($_SESSION['hak_akses'], array('Administrator', 'Admin Gudang'), true)) {
+  elseif ($_GET['module'] == 'surat_jalan') {
     include "modules/surat-jalan/tampil_data.php";
   }
   elseif ($_GET['module'] == 'spp') {

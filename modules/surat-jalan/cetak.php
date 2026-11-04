@@ -4,6 +4,10 @@ if (empty($_SESSION['username'])) {
   header('location: ../../login.php?pesan=2');
   exit;
 }
+if (!isset($_SESSION['hak_akses']) || $_SESSION['hak_akses'] !== 'Administrator') {
+  http_response_code(403);
+  exit('Fitur Surat Jalan Generator sedang dalam pengembangan oleh tim.');
+}
 require_once dirname(__DIR__, 2) . '/config/database.php';
 require_once __DIR__ . '/schema.php';
 require_once __DIR__ . '/template.php';
