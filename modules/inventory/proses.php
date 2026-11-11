@@ -8,8 +8,20 @@ require_once '../../config/database.php';
 require_once __DIR__ . '/schema.php';
 inventory_ensure_schema($mysqli);
 
-function inventory_redirect($query)
+function inventory_redirect($query, $metadata = array())
 {
+  if (isset($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest') {
+    parse_str($query, $params);
+    $success = isset($params['pesan']) && $params['pesan'] === 'sukses';
+    http_response_code($success ? 200 : 422);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array_merge(array(
+      'ok' => $success,
+      'message' => $success ? 'Aksi berhasil diproses.' : (isset($params['detail']) ? $params['detail'] : 'Aksi tidak dapat diproses.'),
+      'gudang_id' => isset($params['gudang_id']) ? (int) $params['gudang_id'] : 0
+    ), $metadata));
+    exit;
+  }
   header('location: ../../main.php?module=inventory&' . $query);
   exit;
 }
@@ -39,7 +51,8 @@ try {
       throw new RuntimeException($message);
     }
     mysqli_stmt_close($statement);
-    inventory_redirect('pesan=sukses');
+    $warehouseId = mysqli_insert_id($mysqli);
+    inventory_redirect('gudang_id=' . $warehouseId . '&pesan=sukses', array('gudang_id' => $warehouseId));
   }
 
   if ($action === 'hapus_gudang') {
@@ -161,7 +174,7 @@ try {
       }
       mysqli_stmt_close($statement);
     }
-    inventory_redirect('gudang_id=' . $warehouseId . '&pesan=sukses');
+    inventory_redirect('gudang_id=' . $warehouseId . '&pesan=sukses', array('item_id' => $itemId, 'nama_item' => $name));
   }
 
   if ($action === 'hapus_item') {
@@ -174,7 +187,7 @@ try {
     mysqli_stmt_bind_param($statement, 'i', $id);
     mysqli_stmt_execute($statement);
     mysqli_stmt_close($statement);
-    inventory_redirect('gudang_id=' . ($warehouseId ? $warehouseId : 0) . '&pesan=sukses');
+    inventory_redirect('gudang_id=' . ($warehouseId ? $warehouseId : 0) . '&pesan=sukses', array('item_id' => $id));
   }
   throw new InvalidArgumentException('Aksi inventory tidak dikenali.');
 } catch (Throwable $exception) {
