@@ -107,6 +107,7 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
   .condition-good { color: #18794e; background: #e6f7ee; }
   .condition-bad { color: #b42318; background: #ffebe8; }
   .category-badge { color: #20639b; background: #eaf3ff; border-radius: 8px; padding: 4px 8px; font-size: 11px; }
+  .inventory-search-form { width: 360px; max-width: 100%; }
   @media (max-width: 767px) { .inventory-hero .page-inner { padding: 28px 20px !important; } .inventory-table { min-width: 1100px; } }
 </style>
 
@@ -142,10 +143,10 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
       <form method="get" class="row align-items-end">
         <input type="hidden" name="module" value="inventory">
         <div class="form-group col-md-3 mb-2"><label>Gudang aktif</label><select name="gudang_id" class="form-control" onchange="this.form.submit()"><?php foreach ($warehouses as $warehouse): ?><option value="<?php echo (int) $warehouse['id_gudang']; ?>" <?php echo $selectedWarehouse === (int) $warehouse['id_gudang'] ? 'selected' : ''; ?>><?php echo inventory_e($warehouse['kode_gudang'] . ' · ' . $warehouse['nama_gudang']); ?></option><?php endforeach; ?></select></div>
-        <div class="form-group col-md-3 mb-2"><label>Cari nama item</label><input type="search" name="cari" class="form-control" maxlength="150" placeholder="Ketik nama item..." value="<?php echo inventory_e($searchTerm); ?>"></div>
         <div class="form-group col-md-2 mb-2"><label>Kategori item</label><select name="kategori" class="form-control"><option value="">Semua kategori</option><?php foreach (array('APD/Safety', 'Tools', 'Consumable', 'Elektronik') as $category): ?><option <?php echo $selectedCategory === $category ? 'selected' : ''; ?>><?php echo inventory_e($category); ?></option><?php endforeach; ?></select></div>
         <div class="form-group col-md-2 mb-2"><label>Kondisi</label><select name="kondisi" class="form-control"><option value="">Semua</option><option <?php echo $selectedCondition === 'Baik' ? 'selected' : ''; ?>>Baik</option><option <?php echo $selectedCondition === 'Rusak' ? 'selected' : ''; ?>>Rusak</option></select></div>
         <div class="form-group col-md-2 mb-2"><button class="btn btn-primary btn-block"><i class="fas fa-filter mr-1"></i>Filter</button></div>
+        <?php if ($searchTerm !== ''): ?><input type="hidden" name="cari" value="<?php echo inventory_e($searchTerm); ?>"><?php endif; ?>
       </form>
       <div class="d-flex flex-wrap justify-content-between align-items-center border-top pt-3 mt-2">
         <div><strong><?php echo $currentWarehouse ? inventory_e($currentWarehouse['nama_gudang']) : 'Gudang'; ?></strong><span class="text-muted ml-2">PJ: <?php echo $currentWarehouse ? inventory_e($currentWarehouse['penanggung_jawab']) : '-'; ?></span></div>
@@ -177,7 +178,20 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
   </div>
 
   <div class="card inventory-card mt-4">
-    <div class="card-header"><h4 class="card-title mb-0">Daftar inventory · <?php echo $currentWarehouse ? inventory_e($currentWarehouse['nama_gudang']) : '-'; ?></h4></div>
+    <div class="card-header d-flex flex-wrap justify-content-between align-items-center">
+      <div><h4 class="card-title mb-1">Daftar inventory · <?php echo $currentWarehouse ? inventory_e($currentWarehouse['nama_gudang']) : '-'; ?></h4><small class="text-muted"><?php echo count($items); ?> item ditemukan</small></div>
+      <form method="get" action="main.php" class="inventory-search-form d-flex align-items-center mt-2 mt-md-0">
+        <input type="hidden" name="module" value="inventory">
+        <input type="hidden" name="gudang_id" value="<?php echo (int) $selectedWarehouse; ?>">
+        <input type="hidden" name="kategori" value="<?php echo inventory_e($selectedCategory); ?>">
+        <input type="hidden" name="kondisi" value="<?php echo inventory_e($selectedCondition); ?>">
+        <div class="input-group">
+          <input type="search" name="cari" class="form-control" maxlength="150" placeholder="Cari nama item..." aria-label="Cari nama item" value="<?php echo inventory_e($searchTerm); ?>">
+          <div class="input-group-append"><button class="btn btn-primary" type="submit" aria-label="Cari"><i class="fas fa-search"></i></button></div>
+        </div>
+        <?php if ($searchTerm !== ''): ?><a class="btn btn-link text-muted ml-1" href="?module=inventory&gudang_id=<?php echo (int) $selectedWarehouse; ?>&kategori=<?php echo rawurlencode($selectedCategory); ?>&kondisi=<?php echo rawurlencode($selectedCondition); ?>" title="Bersihkan pencarian" aria-label="Bersihkan pencarian"><i class="fas fa-times"></i></a><?php endif; ?>
+      </form>
+    </div>
     <div class="card-body"><div class="table-responsive"><table class="table inventory-table table-hover"><thead><tr><th>No</th><th>Nama item</th><th>Kategori</th><th class="text-right">Total QTY</th><th>Satuan</th><th>Detail kondisi</th><th>Tanggal masuk terakhir</th><th>Tanggal pengambilan</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
       <?php if (count($items) === 0): ?><tr><td colspan="10" class="text-center text-muted py-5"><i class="fas fa-box-open fa-2x mb-2 d-block"></i>Belum ada item pada gudang ini.</td></tr><?php endif; ?>
       <?php foreach ($items as $index => $item): ?><tr><td><?php echo $index + 1; ?></td><td><strong><?php echo inventory_e($item['nama_item']); ?></strong></td><td><span class="category-badge"><?php echo inventory_e($item['kategori']); ?></span></td><td class="text-right"><?php echo inventory_qty_format($item['qty']); ?></td><td><?php echo inventory_e($item['satuan']); ?></td><td><span class="condition-badge condition-good"><?php echo inventory_qty_format($item['qty_baik']); ?> baik</span> <span class="condition-badge condition-bad"><?php echo inventory_qty_format($item['qty_rusak']); ?> rusak</span></td><td><?php echo $item['tanggal_masuk_terakhir'] ? date('d/m/Y', strtotime($item['tanggal_masuk_terakhir'])) : '-'; ?></td><td><?php echo $item['tanggal_pengambilan'] ? date('d/m/Y', strtotime($item['tanggal_pengambilan'])) : '-'; ?></td><td><?php echo inventory_e($item['keterangan'] ?: '-'); ?></td><td class="text-nowrap"><a class="btn btn-icon btn-round btn-info btn-sm" title="Riwayat masuk" href="?module=inventory&gudang_id=<?php echo $selectedWarehouse; ?>&riwayat=<?php echo (int) $item['id_inventory']; ?>"><i class="fas fa-history"></i></a> <a class="btn btn-icon btn-round btn-secondary btn-sm" title="Ubah item" href="?module=inventory&gudang_id=<?php echo $selectedWarehouse; ?>&edit=<?php echo (int) $item['id_inventory']; ?>"><i class="fas fa-pencil-alt"></i></a> <a class="btn btn-icon btn-round btn-danger btn-sm" title="Hapus item" href="modules/inventory/proses.php?aksi=hapus_item&id=<?php echo (int) $item['id_inventory']; ?>&gudang_id=<?php echo $selectedWarehouse; ?>" onclick="return confirm('Hapus item ini?')"><i class="fas fa-trash"></i></a></td></tr><?php endforeach; ?>
