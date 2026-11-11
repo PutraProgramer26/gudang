@@ -21,6 +21,7 @@ $selectedWarehouse = isset($_GET['gudang_id']) ? filter_var($_GET['gudang_id'], 
 $selectedWarehouse = $selectedWarehouse && $selectedWarehouse > 0 ? $selectedWarehouse : 0;
 $selectedCondition = isset($_GET['kondisi']) && in_array($_GET['kondisi'], array('Baik', 'Rusak'), true) ? $_GET['kondisi'] : '';
 $selectedCategory = isset($_GET['kategori']) && in_array($_GET['kategori'], array('APD/Safety', 'Tools', 'Consumable', 'Elektronik'), true) ? $_GET['kategori'] : '';
+$searchTerm = isset($_GET['cari']) && is_string($_GET['cari']) ? trim(substr($_GET['cari'], 0, 150)) : '';
 $editId = isset($_GET['edit']) ? filter_var($_GET['edit'], FILTER_VALIDATE_INT) : false;
 $historyId = isset($_GET['riwayat']) ? filter_var($_GET['riwayat'], FILTER_VALIDATE_INT) : false;
 $editItem = null;
@@ -51,6 +52,9 @@ if ($selectedCondition !== '') {
 }
 if ($selectedCategory !== '') {
   $where .= " AND i.kategori = '" . mysqli_real_escape_string($mysqli, $selectedCategory) . "'";
+}
+if ($searchTerm !== '') {
+  $where .= " AND i.nama_item LIKE '%" . mysqli_real_escape_string($mysqli, $searchTerm) . "%'";
 }
 $itemsResult = mysqli_query($mysqli, "SELECT i.*, g.nama_gudang, h.tanggal_masuk_terakhir FROM tbl_inventory i INNER JOIN tbl_gudang g ON g.id_gudang = i.gudang_id LEFT JOIN (SELECT inventory_id, MAX(tanggal_masuk) AS tanggal_masuk_terakhir FROM tbl_inventory_riwayat GROUP BY inventory_id) h ON h.inventory_id = i.id_inventory $where ORDER BY i.kategori ASC, i.nama_item ASC");
 $items = array();
@@ -137,8 +141,9 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
     <div class="card-body">
       <form method="get" class="row align-items-end">
         <input type="hidden" name="module" value="inventory">
-        <div class="form-group col-md-5 mb-2"><label>Gudang aktif</label><select name="gudang_id" class="form-control" onchange="this.form.submit()"><?php foreach ($warehouses as $warehouse): ?><option value="<?php echo (int) $warehouse['id_gudang']; ?>" <?php echo $selectedWarehouse === (int) $warehouse['id_gudang'] ? 'selected' : ''; ?>><?php echo inventory_e($warehouse['kode_gudang'] . ' · ' . $warehouse['nama_gudang']); ?></option><?php endforeach; ?></select></div>
-        <div class="form-group col-md-3 mb-2"><label>Kategori item</label><select name="kategori" class="form-control"><option value="">Semua kategori</option><?php foreach (array('APD/Safety', 'Tools', 'Consumable', 'Elektronik') as $category): ?><option <?php echo $selectedCategory === $category ? 'selected' : ''; ?>><?php echo inventory_e($category); ?></option><?php endforeach; ?></select></div>
+        <div class="form-group col-md-3 mb-2"><label>Gudang aktif</label><select name="gudang_id" class="form-control" onchange="this.form.submit()"><?php foreach ($warehouses as $warehouse): ?><option value="<?php echo (int) $warehouse['id_gudang']; ?>" <?php echo $selectedWarehouse === (int) $warehouse['id_gudang'] ? 'selected' : ''; ?>><?php echo inventory_e($warehouse['kode_gudang'] . ' · ' . $warehouse['nama_gudang']); ?></option><?php endforeach; ?></select></div>
+        <div class="form-group col-md-3 mb-2"><label>Cari nama item</label><input type="search" name="cari" class="form-control" maxlength="150" placeholder="Ketik nama item..." value="<?php echo inventory_e($searchTerm); ?>"></div>
+        <div class="form-group col-md-2 mb-2"><label>Kategori item</label><select name="kategori" class="form-control"><option value="">Semua kategori</option><?php foreach (array('APD/Safety', 'Tools', 'Consumable', 'Elektronik') as $category): ?><option <?php echo $selectedCategory === $category ? 'selected' : ''; ?>><?php echo inventory_e($category); ?></option><?php endforeach; ?></select></div>
         <div class="form-group col-md-2 mb-2"><label>Kondisi</label><select name="kondisi" class="form-control"><option value="">Semua</option><option <?php echo $selectedCondition === 'Baik' ? 'selected' : ''; ?>>Baik</option><option <?php echo $selectedCondition === 'Rusak' ? 'selected' : ''; ?>>Rusak</option></select></div>
         <div class="form-group col-md-2 mb-2"><button class="btn btn-primary btn-block"><i class="fas fa-filter mr-1"></i>Filter</button></div>
       </form>
