@@ -69,7 +69,7 @@ if ($selectedProject && isset($_GET['spp_id'])) {
 
 $alertText = '';
 if (isset($_GET['pesan'])) {
-  $messages = array('1' => 'Project berhasil ditambahkan.', '2' => 'SPP berhasil dibuat.', '3' => 'Penerimaan barang berhasil diperbarui.');
+  $messages = array('1' => 'Project berhasil ditambahkan.', '2' => 'SPP berhasil dibuat.', '3' => 'Penerimaan barang berhasil diperbarui.', '4' => 'Data Excel berhasil diimpor dan SPP dibuat.');
   $alertText = isset($messages[$_GET['pesan']]) ? $messages[$_GET['pesan']] : '';
 }
 $errorText = isset($_GET['error']) ? $_GET['error'] : '';
@@ -168,6 +168,31 @@ if ($appPath === '') {
             </table>
           </div>
           <div class="d-flex flex-wrap justify-content-between align-items-center"><button type="button" id="tambah-item" class="btn btn-outline-success mb-2"><i class="fas fa-plus mr-1"></i>Tambah item</button><button type="submit" class="btn btn-success mb-2"><i class="fas fa-save mr-1"></i>Simpan SPP</button></div>
+        </form>
+      </div>
+    </section>
+    <?php } ?>
+
+    <?php if ($canManageSpp) { ?>
+    <section class="spp-panel">
+      <div class="spp-panel-head"><h3>Import SPP dari Excel</h3><span class="spp-badge">MAKS. 100 ITEM</span></div>
+      <div class="spp-panel-body">
+        <p class="text-muted">Unduh template, isi satu baris untuk setiap item, lalu unggah kembali. Satu file membuat satu SPP; nomor dan tanggal harus sama di semua baris (boleh dikosongkan setelah baris pertama). Gunakan tanggal YYYY-MM-DD atau DD/MM/YYYY dan jumlah maksimal 3 angka desimal.</p>
+        <div class="d-flex flex-wrap align-items-center mb-3">
+          <a class="btn btn-outline-success mr-2 mb-2" href="modules/spp/template.php"><i class="fas fa-file-download mr-1"></i>Unduh Template Excel</a>
+          <small class="text-muted mb-2">Format .xlsx, maksimal 5 MB</small>
+        </div>
+        <form action="modules/spp/proses.php" method="post" enctype="multipart/form-data" class="form-row align-items-end">
+          <input type="hidden" name="csrf_token" value="<?php echo spp_h($_SESSION['csrf_spp']); ?>">
+          <input type="hidden" name="aksi" value="import_excel">
+          <input type="hidden" name="project_id" value="<?php echo (int) $selectedProject['id']; ?>">
+          <div class="form-group col-md-8 mb-2">
+            <label for="file_excel">Pilih file Excel SPP</label>
+            <input id="file_excel" class="form-control-file" type="file" name="file_excel" accept=".xlsx" required>
+          </div>
+          <div class="form-group col-md-4 mb-2">
+            <button type="submit" class="btn btn-success btn-block"><i class="fas fa-file-import mr-1"></i>Import Excel</button>
+          </div>
         </form>
       </div>
     </section>

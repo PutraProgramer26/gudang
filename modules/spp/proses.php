@@ -7,6 +7,7 @@ if (empty($_SESSION['username'])) {
 
 require_once dirname(__DIR__, 2) . '/config/database.php';
 require_once __DIR__ . '/schema.php';
+require_once __DIR__ . '/spreadsheet.php';
 spp_ensure_schema($mysqli);
 
 function spp_redirect_error($message, $projectId = null)
@@ -34,6 +35,49 @@ function spp_parse_quantity($value)
     return false;
   }
   return (float) str_replace(',', '.', $value);
+}
+
+function spp_save_document($mysqli, $projectId, $number, $date, $items, $username)
+{
+  if (!mysqli_begin_transaction($mysqli)) {
+    throw new RuntimeException('Transaksi penyimpanan SPP tidak dapat dimulai.');
+  }
+  try {
+    $token = bin2hex(random_bytes(32));
+    $headerStatement = mysqli_prepare($mysqli, 'INSERT INTO tbl_spp (project_id, nomor_spp, tanggal, share_token, dibuat_oleh) VALUES (?, ?, ?, ?, ?)');
+    if (!$headerStatement) {
+      throw new RuntimeException('SPP tidak dapat disimpan.');
+    }
+    mysqli_stmt_bind_param($headerStatement, 'issss', $projectId, $number, $date, $token, $username);
+    if (!mysqli_stmt_execute($headerStatement)) {
+      $statementError = mysqli_stmt_errno($headerStatement);
+      mysqli_stmt_close($headerStatement);
+      throw new RuntimeException($statementError === 1062 ? 'Nomor SPP tersebut sudah digunakan.' : 'SPP tidak dapat disimpan.');
+    }
+    $sppId = mysqli_insert_id($mysqli);
+    mysqli_stmt_close($headerStatement);
+
+    $itemStatement = mysqli_prepare($mysqli, 'INSERT INTO tbl_spp_item (spp_id, nomor_item, nama_item, spesifikasi, jumlah_diminta, satuan, untuk_pekerjaan, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+    if (!$itemStatement) {
+      throw new RuntimeException('Rincian item SPP tidak dapat disimpan.');
+    }
+    foreach ($items as $index => $item) {
+      $itemNumber = $index + 1;
+      mysqli_stmt_bind_param($itemStatement, 'iissdsss', $sppId, $itemNumber, $item['nama'], $item['spesifikasi'], $item['jumlah'], $item['satuan'], $item['pekerjaan'], $item['keterangan']);
+      if (!mysqli_stmt_execute($itemStatement)) {
+        mysqli_stmt_close($itemStatement);
+        throw new RuntimeException('Rincian item SPP tidak dapat disimpan.');
+      }
+    }
+    mysqli_stmt_close($itemStatement);
+    if (!mysqli_commit($mysqli)) {
+      throw new RuntimeException('SPP tidak dapat diselesaikan di database.');
+    }
+    return $sppId;
+  } catch (Exception $exception) {
+    mysqli_rollback($mysqli);
+    throw $exception;
+  }
 }
 
 if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_SESSION['csrf_spp']) || empty($_POST['csrf_token']) ||
@@ -115,47 +159,75 @@ if ($action === 'buat_spp') {
     $items[] = array('nama' => $name, 'spesifikasi' => $specification, 'jumlah' => $quantity, 'satuan' => $unit, 'pekerjaan' => $work, 'keterangan' => $note);
   }
 
-  if (!mysqli_begin_transaction($mysqli)) {
-    spp_redirect_error('Transaksi penyimpanan SPP tidak dapat dimulai.', $projectId);
-  }
   try {
-    $token = bin2hex(random_bytes(32));
-    $username = $_SESSION['username'];
-    $headerStatement = mysqli_prepare($mysqli, 'INSERT INTO tbl_spp (project_id, nomor_spp, tanggal, share_token, dibuat_oleh) VALUES (?, ?, ?, ?, ?)');
-    if (!$headerStatement) {
-      throw new RuntimeException('SPP tidak dapat disimpan.');
-    }
-    mysqli_stmt_bind_param($headerStatement, 'issss', $projectId, $number, $date, $token, $username);
-    if (!mysqli_stmt_execute($headerStatement)) {
-      $statementError = mysqli_stmt_errno($headerStatement);
-      mysqli_stmt_close($headerStatement);
-      throw new RuntimeException($statementError === 1062 ? 'Nomor SPP tersebut sudah digunakan.' : 'SPP tidak dapat disimpan.');
-    }
-    $sppId = mysqli_insert_id($mysqli);
-    mysqli_stmt_close($headerStatement);
-
-    $itemStatement = mysqli_prepare($mysqli, 'INSERT INTO tbl_spp_item (spp_id, nomor_item, nama_item, spesifikasi, jumlah_diminta, satuan, untuk_pekerjaan, keterangan) VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
-    if (!$itemStatement) {
-      throw new RuntimeException('Rincian item SPP tidak dapat disimpan.');
-    }
-    foreach ($items as $index => $item) {
-      $itemNumber = $index + 1;
-      mysqli_stmt_bind_param($itemStatement, 'iissdsss', $sppId, $itemNumber, $item['nama'], $item['spesifikasi'], $item['jumlah'], $item['satuan'], $item['pekerjaan'], $item['keterangan']);
-      if (!mysqli_stmt_execute($itemStatement)) {
-        mysqli_stmt_close($itemStatement);
-        throw new RuntimeException('Rincian item SPP tidak dapat disimpan.');
-      }
-    }
-    mysqli_stmt_close($itemStatement);
-    if (!mysqli_commit($mysqli)) {
-      throw new RuntimeException('SPP tidak dapat diselesaikan di database.');
-    }
+    $sppId = spp_save_document($mysqli, $projectId, $number, $date, $items, $_SESSION['username']);
   } catch (Exception $exception) {
-    mysqli_rollback($mysqli);
     spp_redirect_error($exception->getMessage(), $projectId);
   }
 
   header('location: ../../main.php?module=spp&project_id=' . (int) $projectId . '&spp_id=' . (int) $sppId . '&pesan=2');
+  exit;
+}
+
+if ($action === 'import_excel') {
+  $projectId = filter_var(isset($_POST['project_id']) ? $_POST['project_id'] : null, FILTER_VALIDATE_INT);
+  if (!$projectId || $projectId < 1) {
+    spp_redirect_error('Pilih project yang valid sebelum mengimpor SPP.');
+  }
+  $projectStatement = mysqli_prepare($mysqli, 'SELECT id FROM tbl_spp_project WHERE id = ?');
+  if (!$projectStatement) {
+    spp_redirect_error('Project tidak dapat diperiksa.', $projectId);
+  }
+  mysqli_stmt_bind_param($projectStatement, 'i', $projectId);
+  mysqli_stmt_execute($projectStatement);
+  $projectResult = mysqli_stmt_get_result($projectStatement);
+  $projectExists = mysqli_fetch_assoc($projectResult);
+  mysqli_stmt_close($projectStatement);
+  if (!$projectExists) {
+    spp_redirect_error('Project tidak ditemukan. Pilih project yang tersedia.');
+  }
+  if (!isset($_FILES['file_excel']) || !is_array($_FILES['file_excel']) ||
+      !isset($_FILES['file_excel']['error'], $_FILES['file_excel']['tmp_name'], $_FILES['file_excel']['name']) ||
+      $_FILES['file_excel']['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($_FILES['file_excel']['tmp_name'])) {
+    spp_redirect_error('File Excel gagal diunggah. Pilih file .xlsx berukuran maksimal 5 MB.', $projectId);
+  }
+  if ((int) $_FILES['file_excel']['size'] < 1 || (int) $_FILES['file_excel']['size'] > 5242880 ||
+      strtolower(pathinfo($_FILES['file_excel']['name'], PATHINFO_EXTENSION)) !== 'xlsx') {
+    spp_redirect_error('File harus berformat .xlsx dan berukuran maksimal 5 MB.', $projectId);
+  }
+  try {
+    $spreadsheet = spp_xlsx_parse_items($_FILES['file_excel']['tmp_name']);
+  } catch (Exception $exception) {
+    spp_redirect_error($exception->getMessage(), $projectId);
+  }
+  $number = trim($spreadsheet['nomor_spp']);
+  $date = $spreadsheet['tanggal'];
+  if ($number === '' || strlen($number) > 80 || !preg_match('~^[A-Za-z0-9-]+(?:/[A-Za-z0-9-]+){2,4}$~', $number)) {
+    spp_redirect_error('Nomor SPP harus memakai format seperti 001/JP/SPP/2026 dan maksimal 80 karakter.', $projectId);
+  }
+  $items = array();
+  foreach ($spreadsheet['items'] as $item) {
+    $quantity = spp_parse_quantity($item['jumlah']);
+    if ($item['nama'] === '' || strlen($item['nama']) > 160 || $quantity === false || $quantity <= 0 || $quantity > 99999999999.999 ||
+        strlen($item['spesifikasi']) > 255 || $item['satuan'] === '' || strlen($item['satuan']) > 40 ||
+        strlen($item['pekerjaan']) > 160 || strlen($item['keterangan']) > 255) {
+      spp_redirect_error('Periksa nama, jumlah, satuan, dan panjang keterangan pada baris ' . (int) $item['row'] . '.', $projectId);
+    }
+    $items[] = array(
+      'nama' => $item['nama'],
+      'spesifikasi' => $item['spesifikasi'],
+      'jumlah' => $quantity,
+      'satuan' => $item['satuan'],
+      'pekerjaan' => $item['pekerjaan'],
+      'keterangan' => $item['keterangan']
+    );
+  }
+  try {
+    $sppId = spp_save_document($mysqli, $projectId, $number, $date, $items, $_SESSION['username']);
+  } catch (Exception $exception) {
+    spp_redirect_error($exception->getMessage(), $projectId);
+  }
+  header('location: ../../main.php?module=spp&project_id=' . (int) $projectId . '&spp_id=' . (int) $sppId . '&pesan=4');
   exit;
 }
 
