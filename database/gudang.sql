@@ -208,6 +208,8 @@ CREATE TABLE IF NOT EXISTS `tbl_inventory` (
   `nama_item` varchar(150) NOT NULL,
   `kategori` varchar(30) NOT NULL,
   `qty` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `qty_baik` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `qty_rusak` decimal(12,2) NOT NULL DEFAULT 0.00,
   `satuan` varchar(40) NOT NULL,
   `kondisi` enum('Baik','Rusak') NOT NULL DEFAULT 'Baik',
   `tanggal_pengambilan` date DEFAULT NULL,
@@ -219,6 +221,20 @@ CREATE TABLE IF NOT EXISTS `tbl_inventory` (
   KEY `idx_inventory_gudang` (`gudang_id`),
   KEY `idx_inventory_kategori` (`kategori`),
   CONSTRAINT `fk_inventory_gudang` FOREIGN KEY (`gudang_id`) REFERENCES `tbl_gudang` (`id_gudang`) ON DELETE CASCADE ON UPDATE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+CREATE TABLE IF NOT EXISTS `tbl_inventory_riwayat` (
+  `id_riwayat` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `inventory_id` int(10) unsigned NOT NULL,
+  `tanggal_masuk` date NOT NULL,
+  `qty_baik` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `qty_rusak` decimal(12,2) NOT NULL DEFAULT 0.00,
+  `keterangan` text DEFAULT NULL,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id_riwayat`),
+  KEY `idx_inventory_riwayat_item` (`inventory_id`,`tanggal_masuk`),
+  CONSTRAINT `fk_inventory_riwayat_item` FOREIGN KEY (`inventory_id`) REFERENCES `tbl_inventory` (`id_inventory`) ON DELETE CASCADE ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 INSERT INTO `tbl_gudang` (`kode_gudang`, `nama_gudang`, `penanggung_jawab`)

@@ -22,7 +22,10 @@ $selectedWarehouse = $selectedWarehouse && $selectedWarehouse > 0 ? $selectedWar
 $selectedCondition = isset($_GET['kondisi']) && in_array($_GET['kondisi'], array('Baik', 'Rusak'), true) ? $_GET['kondisi'] : '';
 $selectedCategory = isset($_GET['kategori']) && in_array($_GET['kategori'], array('APD/Safety', 'Tools', 'Consumable', 'Elektronik'), true) ? $_GET['kategori'] : '';
 $editId = isset($_GET['edit']) ? filter_var($_GET['edit'], FILTER_VALIDATE_INT) : false;
+$historyId = isset($_GET['riwayat']) ? filter_var($_GET['riwayat'], FILTER_VALIDATE_INT) : false;
 $editItem = null;
+$historyItem = null;
+$historyRows = array();
 
 $warehouseResult = mysqli_query($mysqli, 'SELECT id_gudang, kode_gudang, nama_gudang, penanggung_jawab FROM tbl_gudang ORDER BY nama_gudang ASC');
 $warehouses = array();
@@ -44,12 +47,12 @@ if ($editId) {
 
 $where = 'WHERE i.gudang_id = ' . (int) $selectedWarehouse;
 if ($selectedCondition !== '') {
-  $where .= " AND i.kondisi = '" . mysqli_real_escape_string($mysqli, $selectedCondition) . "'";
+  $where .= $selectedCondition === 'Baik' ? ' AND i.qty_baik > 0' : ' AND i.qty_rusak > 0';
 }
 if ($selectedCategory !== '') {
   $where .= " AND i.kategori = '" . mysqli_real_escape_string($mysqli, $selectedCategory) . "'";
 }
-$itemsResult = mysqli_query($mysqli, "SELECT i.*, g.nama_gudang FROM tbl_inventory i INNER JOIN tbl_gudang g ON g.id_gudang = i.gudang_id $where ORDER BY i.kategori ASC, i.nama_item ASC");
+$itemsResult = mysqli_query($mysqli, "SELECT i.*, g.nama_gudang, h.tanggal_masuk_terakhir FROM tbl_inventory i INNER JOIN tbl_gudang g ON g.id_gudang = i.gudang_id LEFT JOIN (SELECT inventory_id, MAX(tanggal_masuk) AS tanggal_masuk_terakhir FROM tbl_inventory_riwayat GROUP BY inventory_id) h ON h.inventory_id = i.id_inventory $where ORDER BY i.kategori ASC, i.nama_item ASC");
 $items = array();
 $totalQty = 0;
 $goodCount = 0;
@@ -57,10 +60,25 @@ $damagedCount = 0;
 while ($item = mysqli_fetch_assoc($itemsResult)) {
   $items[] = $item;
   $totalQty += (float) $item['qty'];
-  if ($item['kondisi'] === 'Baik') {
-    $goodCount++;
-  } else {
-    $damagedCount++;
+  $goodCount += (float) $item['qty_baik'];
+  $damagedCount += (float) $item['qty_rusak'];
+}
+
+if ($historyId && $historyId > 0) {
+  $historyItemStatement = mysqli_prepare($mysqli, 'SELECT id_inventory, nama_item FROM tbl_inventory WHERE id_inventory = ? AND gudang_id = ? LIMIT 1');
+  mysqli_stmt_bind_param($historyItemStatement, 'ii', $historyId, $selectedWarehouse);
+  mysqli_stmt_execute($historyItemStatement);
+  $historyItem = mysqli_fetch_assoc(mysqli_stmt_get_result($historyItemStatement));
+  mysqli_stmt_close($historyItemStatement);
+  if ($historyItem) {
+    $historyStatement = mysqli_prepare($mysqli, 'SELECT tanggal_masuk, qty_baik, qty_rusak, keterangan, created_by FROM tbl_inventory_riwayat WHERE inventory_id = ? ORDER BY tanggal_masuk DESC, id_riwayat DESC');
+    mysqli_stmt_bind_param($historyStatement, 'i', $historyId);
+    mysqli_stmt_execute($historyStatement);
+    $historyResult = mysqli_stmt_get_result($historyStatement);
+    while ($history = mysqli_fetch_assoc($historyResult)) {
+      $historyRows[] = $history;
+    }
+    mysqli_stmt_close($historyStatement);
   }
 }
 
@@ -85,7 +103,7 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
   .condition-good { color: #18794e; background: #e6f7ee; }
   .condition-bad { color: #b42318; background: #ffebe8; }
   .category-badge { color: #20639b; background: #eaf3ff; border-radius: 8px; padding: 4px 8px; font-size: 11px; }
-  @media (max-width: 767px) { .inventory-hero .page-inner { padding: 28px 20px !important; } .inventory-table { min-width: 900px; } }
+  @media (max-width: 767px) { .inventory-hero .page-inner { padding: 28px 20px !important; } .inventory-table { min-width: 1100px; } }
 </style>
 
 <?php if (isset($_GET['pesan'])): ?>
@@ -111,8 +129,8 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
   <div class="row">
     <div class="col-sm-6 col-xl-3"><div class="inventory-stat mb-3"><span class="icon mr-2"><i class="fas fa-boxes"></i></span><strong><?php echo count($items); ?></strong><div class="text-muted small mt-2">Jenis item tercatat</div></div></div>
     <div class="col-sm-6 col-xl-3"><div class="inventory-stat mb-3"><span class="icon mr-2" style="background:#e8f8f2;color:#178255"><i class="fas fa-cubes"></i></span><strong><?php echo inventory_qty_format($totalQty); ?></strong><div class="text-muted small mt-2">Total QTY</div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="inventory-stat mb-3"><span class="icon mr-2" style="background:#fff5da;color:#a86f00"><i class="fas fa-check-circle"></i></span><strong><?php echo $goodCount; ?></strong><div class="text-muted small mt-2">Kondisi baik</div></div></div>
-    <div class="col-sm-6 col-xl-3"><div class="inventory-stat mb-3"><span class="icon mr-2" style="background:#ffebe8;color:#b42318"><i class="fas fa-exclamation-triangle"></i></span><strong><?php echo $damagedCount; ?></strong><div class="text-muted small mt-2">Perlu perhatian</div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="inventory-stat mb-3"><span class="icon mr-2" style="background:#fff5da;color:#a86f00"><i class="fas fa-check-circle"></i></span><strong><?php echo inventory_qty_format($goodCount); ?></strong><div class="text-muted small mt-2">Jumlah baik</div></div></div>
+    <div class="col-sm-6 col-xl-3"><div class="inventory-stat mb-3"><span class="icon mr-2" style="background:#ffebe8;color:#b42318"><i class="fas fa-exclamation-triangle"></i></span><strong><?php echo inventory_qty_format($damagedCount); ?></strong><div class="text-muted small mt-2">Jumlah rusak</div></div></div>
   </div>
 
   <div class="card inventory-card mb-4">
@@ -140,13 +158,14 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
       <form method="post" action="modules/inventory/proses.php" class="row">
         <input type="hidden" name="aksi" value="<?php echo $isEdit ? 'ubah_item' : 'tambah_item'; ?>"><input type="hidden" name="id_inventory" value="<?php echo $isEdit ? (int) $editItem['id_inventory'] : 0; ?>">
         <div class="form-group col-md-4"><label>Gudang <span class="text-danger">*</span></label><select name="gudang_id" class="form-control" required><?php foreach ($warehouses as $warehouse): ?><option value="<?php echo (int) $warehouse['id_gudang']; ?>" <?php echo $formWarehouse === (int) $warehouse['id_gudang'] ? 'selected' : ''; ?>><?php echo inventory_e($warehouse['nama_gudang']); ?></option><?php endforeach; ?></select></div>
-        <div class="form-group col-md-4"><label>Nama item <span class="text-danger">*</span></label><input name="nama_item" class="form-control" required maxlength="150" value="<?php echo $isEdit ? inventory_e($editItem['nama_item']) : ''; ?>"></div>
-        <div class="form-group col-md-2"><label>QTY <span class="text-danger">*</span></label><input type="number" name="qty" class="form-control" min="0" step="0.01" inputmode="decimal" required value="<?php echo $isEdit ? inventory_e($editItem['qty']) : '0'; ?>"><small class="form-text text-muted">Bisa bilangan bulat atau desimal.</small></div>
-        <div class="form-group col-md-2"><label>Satuan <span class="text-danger">*</span></label><input name="satuan" class="form-control" required maxlength="40" placeholder="pcs, box..." value="<?php echo $isEdit ? inventory_e($editItem['satuan']) : ''; ?>"></div>
+        <div class="form-group col-md-4"><label>Nama item <span class="text-danger">*</span></label><input name="nama_item" class="form-control" required maxlength="150" value="<?php echo $isEdit ? inventory_e($editItem['nama_item']) : ''; ?>"><small class="form-text text-muted">Nama yang sudah ada akan menambah stok item tersebut.</small></div>
+        <div class="form-group col-md-2"><label>Jumlah baik <span class="text-danger">*</span></label><input type="number" name="qty_baik" class="form-control" min="0" step="0.01" inputmode="decimal" required value="<?php echo $isEdit ? inventory_e($editItem['qty_baik']) : '0'; ?>"></div>
+        <div class="form-group col-md-2"><label>Jumlah rusak <span class="text-danger">*</span></label><input type="number" name="qty_rusak" class="form-control" min="0" step="0.01" inputmode="decimal" required value="<?php echo $isEdit ? inventory_e($editItem['qty_rusak']) : '0'; ?>"></div>
+        <div class="form-group col-md-3"><label>Satuan <span class="text-danger">*</span></label><input name="satuan" class="form-control" required maxlength="40" placeholder="pcs, box..." value="<?php echo $isEdit ? inventory_e($editItem['satuan']) : ''; ?>"></div>
         <div class="form-group col-md-3"><label>Kategori <span class="text-danger">*</span></label><select name="kategori" class="form-control" required><?php foreach (array('APD/Safety', 'Tools', 'Consumable', 'Elektronik') as $category): ?><option <?php echo $isEdit && $editItem['kategori'] === $category ? 'selected' : ''; ?>><?php echo inventory_e($category); ?></option><?php endforeach; ?></select></div>
-        <div class="form-group col-md-3"><label>Kondisi <span class="text-danger">*</span></label><select name="kondisi" class="form-control" required><option <?php echo !$isEdit || $editItem['kondisi'] === 'Baik' ? 'selected' : ''; ?>>Baik</option><option <?php echo $isEdit && $editItem['kondisi'] === 'Rusak' ? 'selected' : ''; ?>>Rusak</option></select></div>
         <div class="form-group col-md-3"><label>Tanggal pengambilan</label><input type="date" name="tanggal_pengambilan" class="form-control" value="<?php echo $isEdit ? inventory_e($editItem['tanggal_pengambilan']) : ''; ?>"></div>
-        <div class="form-group col-md-3"><label>Keterangan</label><input name="keterangan" class="form-control" maxlength="500" value="<?php echo $isEdit ? inventory_e($editItem['keterangan']) : ''; ?>"></div>
+        <div class="form-group col-md-3"><label><?php echo $isEdit ? 'Keterangan' : 'Tanggal masuk'; ?><?php echo $isEdit ? '' : ' <span class="text-danger">*</span>'; ?></label><?php if ($isEdit): ?><input name="keterangan" class="form-control" maxlength="500" value="<?php echo inventory_e($editItem['keterangan']); ?>"><?php else: ?><input type="date" name="tanggal_masuk" class="form-control" required value="<?php echo date('Y-m-d'); ?>"><?php endif; ?></div>
+        <?php if (!$isEdit): ?><div class="form-group col-md-3"><label>Keterangan</label><input name="keterangan" class="form-control" maxlength="500"></div><?php endif; ?>
         <div class="col-12 text-right"><button class="btn btn-primary btn-round px-4"><i class="fas fa-save mr-1"></i><?php echo $isEdit ? 'Simpan perubahan' : 'Simpan item'; ?></button></div>
       </form>
     </div>
@@ -154,11 +173,15 @@ $formWarehouse = $isEdit ? (int) $editItem['gudang_id'] : $selectedWarehouse;
 
   <div class="card inventory-card mt-4">
     <div class="card-header"><h4 class="card-title mb-0">Daftar inventory · <?php echo $currentWarehouse ? inventory_e($currentWarehouse['nama_gudang']) : '-'; ?></h4></div>
-    <div class="card-body"><div class="table-responsive"><table class="table inventory-table table-hover"><thead><tr><th>No</th><th>Nama item</th><th>Kategori</th><th class="text-right">QTY</th><th>Satuan</th><th>Kondisi</th><th>Tanggal pengambilan</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
-      <?php if (count($items) === 0): ?><tr><td colspan="9" class="text-center text-muted py-5"><i class="fas fa-box-open fa-2x mb-2 d-block"></i>Belum ada item pada gudang ini.</td></tr><?php endif; ?>
-      <?php foreach ($items as $index => $item): ?><tr><td><?php echo $index + 1; ?></td><td><strong><?php echo inventory_e($item['nama_item']); ?></strong></td><td><span class="category-badge"><?php echo inventory_e($item['kategori']); ?></span></td><td class="text-right"><?php echo inventory_qty_format($item['qty']); ?></td><td><?php echo inventory_e($item['satuan']); ?></td><td><span class="condition-badge <?php echo $item['kondisi'] === 'Baik' ? 'condition-good' : 'condition-bad'; ?>"><?php echo inventory_e($item['kondisi']); ?></span></td><td><?php echo $item['tanggal_pengambilan'] ? date('d/m/Y', strtotime($item['tanggal_pengambilan'])) : '-'; ?></td><td><?php echo inventory_e($item['keterangan'] ?: '-'); ?></td><td class="text-nowrap"><a class="btn btn-icon btn-round btn-secondary btn-sm" href="?module=inventory&gudang_id=<?php echo $selectedWarehouse; ?>&edit=<?php echo (int) $item['id_inventory']; ?>"><i class="fas fa-pencil-alt"></i></a> <a class="btn btn-icon btn-round btn-danger btn-sm" href="modules/inventory/proses.php?aksi=hapus_item&id=<?php echo (int) $item['id_inventory']; ?>&gudang_id=<?php echo $selectedWarehouse; ?>" onclick="return confirm('Hapus item ini?')"><i class="fas fa-trash"></i></a></td></tr><?php endforeach; ?>
+    <div class="card-body"><div class="table-responsive"><table class="table inventory-table table-hover"><thead><tr><th>No</th><th>Nama item</th><th>Kategori</th><th class="text-right">Total QTY</th><th>Satuan</th><th>Detail kondisi</th><th>Tanggal masuk terakhir</th><th>Tanggal pengambilan</th><th>Keterangan</th><th>Aksi</th></tr></thead><tbody>
+      <?php if (count($items) === 0): ?><tr><td colspan="10" class="text-center text-muted py-5"><i class="fas fa-box-open fa-2x mb-2 d-block"></i>Belum ada item pada gudang ini.</td></tr><?php endif; ?>
+      <?php foreach ($items as $index => $item): ?><tr><td><?php echo $index + 1; ?></td><td><strong><?php echo inventory_e($item['nama_item']); ?></strong></td><td><span class="category-badge"><?php echo inventory_e($item['kategori']); ?></span></td><td class="text-right"><?php echo inventory_qty_format($item['qty']); ?></td><td><?php echo inventory_e($item['satuan']); ?></td><td><span class="condition-badge condition-good"><?php echo inventory_qty_format($item['qty_baik']); ?> baik</span> <span class="condition-badge condition-bad"><?php echo inventory_qty_format($item['qty_rusak']); ?> rusak</span></td><td><?php echo $item['tanggal_masuk_terakhir'] ? date('d/m/Y', strtotime($item['tanggal_masuk_terakhir'])) : '-'; ?></td><td><?php echo $item['tanggal_pengambilan'] ? date('d/m/Y', strtotime($item['tanggal_pengambilan'])) : '-'; ?></td><td><?php echo inventory_e($item['keterangan'] ?: '-'); ?></td><td class="text-nowrap"><a class="btn btn-icon btn-round btn-info btn-sm" title="Riwayat masuk" href="?module=inventory&gudang_id=<?php echo $selectedWarehouse; ?>&riwayat=<?php echo (int) $item['id_inventory']; ?>"><i class="fas fa-history"></i></a> <a class="btn btn-icon btn-round btn-secondary btn-sm" title="Ubah item" href="?module=inventory&gudang_id=<?php echo $selectedWarehouse; ?>&edit=<?php echo (int) $item['id_inventory']; ?>"><i class="fas fa-pencil-alt"></i></a> <a class="btn btn-icon btn-round btn-danger btn-sm" title="Hapus item" href="modules/inventory/proses.php?aksi=hapus_item&id=<?php echo (int) $item['id_inventory']; ?>&gudang_id=<?php echo $selectedWarehouse; ?>" onclick="return confirm('Hapus item ini?')"><i class="fas fa-trash"></i></a></td></tr><?php endforeach; ?>
     </tbody></table></div></div>
   </div>
+
+  <?php if ($historyItem): ?>
+  <div class="card inventory-card mt-4"><div class="card-header d-flex justify-content-between align-items-center"><h4 class="card-title mb-0">Riwayat masuk · <?php echo inventory_e($historyItem['nama_item']); ?></h4><a class="btn btn-light btn-sm" href="?module=inventory&gudang_id=<?php echo $selectedWarehouse; ?>">Tutup</a></div><div class="card-body"><div class="table-responsive"><table class="table table-hover"><thead><tr><th>Tanggal masuk</th><th>Jumlah baik</th><th>Jumlah rusak</th><th>Keterangan</th></tr></thead><tbody><?php foreach ($historyRows as $history): ?><tr><td><?php echo date('d/m/Y', strtotime($history['tanggal_masuk'])); ?></td><td><?php echo inventory_qty_format($history['qty_baik']); ?></td><td><?php echo inventory_qty_format($history['qty_rusak']); ?></td><td><?php echo inventory_e($history['keterangan'] ?: '-'); ?></td></tr><?php endforeach; ?><?php if (!$historyRows): ?><tr><td colspan="4" class="text-center text-muted">Belum ada riwayat penerimaan.</td></tr><?php endif; ?></tbody></table></div></div></div>
+  <?php endif; ?>
 </div>
 
 <div class="modal fade" id="warehouseModal" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header"><h5 class="modal-title">Gudang & penanggung jawab</h5><button class="close" data-dismiss="modal">&times;</button></div><div class="modal-body">
